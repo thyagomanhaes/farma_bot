@@ -45,11 +45,11 @@ async def callback(event):
                 await event.respond("Iniciando processo de coleta de dados.Por favor, aguarde... ⏳", parse_mode='html')
 
                 start = time.time()
-                l_produtos = mec_paralelo.executar_scrap_paralelo(CATEGORIAS_MECOFARMA[3:4])
+                products_list = mec_paralelo.executar_scrap_paralelo(CATEGORIAS_MECOFARMA)
 
-                df = transformar_lista_em_df(lista_produtos=l_produtos)
+                df_products = transformar_lista_em_df(lista_produtos=products_list)
 
-                nome_arquivo = mec.exportar_produtos_para_excel(df, 'todas-as-categorias')
+                nome_arquivo = mec.exportar_produtos_para_excel(df_products, 'todas-as-categorias')
 
                 sender = await event.get_sender()
                 id_user_telegram = sender.id
@@ -59,7 +59,7 @@ async def callback(event):
                 end = time.time()
                 total_time = round(end - start, 2)
 
-                msg_sucesso = f"{len(l_produtos)} produtos coletados com sucesso em {total_time} segundos!"
+                msg_sucesso = f"{len(products_list)} produtos coletados com sucesso em {total_time} segundos!"
 
                 await event.respond(msg_sucesso, parse_mode='html')
                 await event.respond("Ufa!😅 Coleta finalizada. Aqui está seu arquivo 👇", parse_mode='html')
@@ -88,9 +88,9 @@ async def callback(event):
                         lista_url_categoria.append(categoria)
                         break
 
-                l_produtos = mec_paralelo.executar_scrap_paralelo(lista_url_categoria)
+                products_list = mec_paralelo.executar_scrap_paralelo(lista_url_categoria)
 
-                df = mec.transformar_lista_em_df(lista_produtos=l_produtos)
+                df = mec.transformar_lista_em_df(lista_produtos=products_list)
 
                 nome_arquivo = mec.exportar_produtos_para_excel(df, nome_categoria)
 
@@ -103,10 +103,8 @@ async def callback(event):
                 total_time = round(end - start_categoria, 2)
 
                 msg_sucesso = f"Ufa!😅 Coleta finalizada!" \
-                              f"\n\n{len(l_produtos)} produtos coletados com sucesso em {total_time} segundos!" \
+                              f"\n\n{len(products_list)} produtos coletados com sucesso em {total_time} segundos!" \
                               f"\n\nAqui está seu arquivo 👇"
-
-                # resumo_df(df)
 
                 await event.respond(msg_sucesso, parse_mode='html')
                 await farmabot_client.send_file(user, nome_arquivo)
@@ -126,12 +124,12 @@ async def callback(event):
             access_token = 'xxx'
             page = make_request(URL_LISTAR_PRODUTOS_APPY_SAUDE, access_token)
 
-            total_produtos = page.json()['TotalCount']
-            await event.respond(f"Iniciando coleta de <b>{total_produtos}</b> produtos disponíveis", parse_mode='html')
+            totaproducts_list = page.json()['TotalCount']
+            await event.respond(f"Iniciando coleta de <b>{totaproducts_list}</b> produtos disponíveis", parse_mode='html')
 
-            l_produtos = scrap_pagina_produtos(page, access_token)
+            products_list = scrap_pagina_produtos(page, access_token)
 
-            df_produtos = pd.DataFrame.from_dict(l_produtos)
+            df_produtos = pd.DataFrame.from_dict(products_list)
 
             nome_arquivo = exportar_produtos_para_excel(df_produtos)
 
@@ -140,7 +138,7 @@ async def callback(event):
             end = time.time()
             total_time = round(end - start, 2)
 
-            msg_sucesso = f"{len(l_produtos)} produtos coletados com sucesso em {total_time} segundos!"
+            msg_sucesso = f"{len(products_list)} produtos coletados com sucesso em {total_time} segundos!"
 
             await event.respond(msg_sucesso, parse_mode='html')
             await event.respond("Ufa!😅 Coleta finalizada. Aqui está seu arquivo 👇", parse_mode='html')
