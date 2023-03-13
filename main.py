@@ -14,8 +14,6 @@ from mecofarma.constants import BOTOES_MECOFARMA, BOTOES_MENU_FARMA_BOT
 import mecofarma.mecofarma_paralelo as mec_paralelo
 import mecofarma.mecofarma as mec
 
-# from constants import Chaves
-
 logging.basicConfig(format='%(asctime)s : %(levelname)s => %(message)s', level=logging.INFO,
                     filename='farma_bot.log')
 
@@ -116,6 +114,7 @@ async def callback(event):
                                     parse_mode='html')
 
             except Exception as e:
+                print("Erro ao realizar scraping: ", e)
                 await event.respond(f"Ocorreu um erro ao realizar o scraping. Por favor, tente novamente em instantes",
                                     parse_mode='html')
 

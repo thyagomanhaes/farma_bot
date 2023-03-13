@@ -11,3 +11,8 @@ RUN apt-get update
 ADD ./requirements.txt /
 RUN pip install --upgrade pip
 RUN pip install -r requirements.txt
+
+RUN mkdir /code
+WORKDIR /code
+
+ADD ./ /code/
