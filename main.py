@@ -38,7 +38,7 @@ async def callback(event):
     if event.data in BOTOES_MENU_FARMA_BOT.keys():
         if event.data == b'botaoTodasCategorias':
             try:
-                msg = "Muito bem!🤩 \nVocê escolheu <b>Todas as categorias</b>!\n\nO site possui mais de 5.000 produtos e este processo pode demorar em média 30 minutos ⏳"
+                msg = "Muito bem!🤩 \nVocê escolheu <b>Todas as categorias</b>!\n\nO site possui mais de 5.000 produtos e este processo pode demorar 30 minutos ⏳"
                 msg += "\n\nMas fica tranquilo! Assim que finalizar irei te avisar e será enviado um arquivo excel com todos os produtos coletados, tá? 😉"
                 await event.respond(msg, parse_mode='html')
 
