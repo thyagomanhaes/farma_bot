@@ -2,6 +2,10 @@ from enum import Enum
 from telethon import Button
 
 
+class CategoriasMecofarma(Enum):
+    SEXUALIDADE = 'Sexualidade'
+
+
 class Chaves(str, Enum):
     API_ID = 3494250
     API_HASH = 'd3ada71e2f13b6701f420f0190e109dc'
@@ -15,13 +19,14 @@ class Chaves(str, Enum):
 
 
 BOTOES_MECOFARMA = [
-    [Button.inline('Farmácia', 'botaoFarmacia')],
-    [Button.inline('Mamã e Bebé', 'botaoMamaebebe')],
-    [Button.inline('Saúde e Beleza', 'botaoSaudeeBeleza')],
-    [Button.inline('Sexualidade', 'botaoSexualidade')],
-    [Button.inline('Ortopedia', 'botaoOrtopedia')],
-    [Button.inline('Vida Saudável', 'botaoVidaSaudavel')],
+    [Button.inline('💊 Farmácia', 'botaoFarmacia')],
+    [Button.inline('🤱 Mamã e Bebé', 'botaoMamaebebe')],
+    [Button.inline('💄 Saúde e Beleza', 'botaoSaudeeBeleza')],
+    [Button.inline('⚧ Sexualidade', 'botaoSexualidade')],
+    [Button.inline('🦴 Ortopedia', 'botaoOrtopedia')],
+    [Button.inline('🏃 Vida Saudável', 'botaoVidaSaudavel')],
     [Button.inline('Todas as Categorias', 'botaoTodasCategorias')],
+    [Button.inline('🔎 Busca por CNP', 'botaoBuscaPorCNP')],
 ]
 
 BOTOES_MENU_FARMA_BOT = {
@@ -60,5 +65,9 @@ BOTOES_MENU_FARMA_BOT = {
     b'botaoBuscaPorRef': {
         "nome": "Busca por REF",
         "link": "https://www.mecofarma.com/pt/saude-e-beleza"
+    },
+    b'botaoBuscaPorCNP': {
+        "nome": "Busca por CNP",
+        "link": ""
     }
 }
