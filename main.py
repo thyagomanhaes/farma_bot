@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 import asyncio
-import json
 import logging
 import os
 import sys
@@ -8,9 +7,7 @@ import time
 from datetime import datetime
 from typing import List
 
-import aiohttp
 import pandas as pd
-from bs4 import BeautifulSoup
 from telethon import TelegramClient, events, Button
 from telethon.sessions import StringSession
 from decouple import config
@@ -18,122 +15,117 @@ from telethon.tl.types import PeerUser
 
 from appysaude.appysaude import scrap_pagina_produtos, exportar_produtos_para_excel, make_request
 from appysaude.constants import BOTOES_APPYSAUDE, URL_LISTAR_PRODUTOS_APPY_SAUDE
+from constants import BOTAO_CADASTRO_FARMABOT, BOTAO_AREA_ADMIN, URL_BUSCA_POR_CNP
 from mecofarma import mecofarma_paralelo
 from mecofarma.mecofarma import CATEGORIAS_MECOFARMA, transformar_lista_em_df
 from mecofarma.constants import BOTOES_MECOFARMA, BOTOES_MENU_FARMA_BOT
 import mecofarma.mecofarma_paralelo as mec_paralelo
 import mecofarma.mecofarma as mec
 
-# formatter = logging.Formatter("[%(asctime)s] %(levelname)s:%(name)s:%(lineno)d:%(message)s")
-
 logger = logging.getLogger(__name__)
 stream_handler = logging.StreamHandler(sys.stdout)  # Where logged messages will output, in this case direct to console
 formatter = logging.Formatter('[%(asctime)s : %(levelname)s] => %(message)s')
-
 stream_handler.setFormatter(formatter)
 logger.addHandler(stream_handler)
-
-# file_handler = logging.FileHandler("farmabot.log")
-# logger.addHandler(file_handler)
-
-# logger.setLevel(logging.DEBUG)
-
-
-# logging.basicConfig(
-#     format='%(asctime)s : %(levelname)s => %(message)s',
-#     level=logging.INFO,
-#     filename='farma_bot.log'
-# )
-
-logging.basicConfig(format='%(asctime)s : %(levelname)s => %(message)s', level=logging.INFO,
-                    filename='farma_bot.log')
+logger.setLevel(logging.DEBUG) # better to have too much log than not enough
 
 GREENVESTBOT_DEV_STRING_SESSION_BOT = config('GREENVESTBOT_DEV_STRING_SESSION_BOT')
 FARMABOT_TELEGRAM_API_ID = config('FARMABOT_TELEGRAM_API_ID')
 FARMABOT_TELEGRAM_API_HASH = config('FARMABOT_TELEGRAM_API_HASH')
 GREENVESTBOT_DEV_BOT_TOKEN = config('GREENVESTBOT_DEV_BOT_TOKEN')
 
-# Instanciando o bot a partir da string de sessão
+# Creating a bot cliente from string session
 farmabot_client = TelegramClient(
     StringSession(GREENVESTBOT_DEV_STRING_SESSION_BOT),
-    int(FARMABOT_TELEGRAM_API_ID), 
+    int(FARMABOT_TELEGRAM_API_ID),
     FARMABOT_TELEGRAM_API_HASH
 ).start(bot_token=GREENVESTBOT_DEV_BOT_TOKEN)
 
 
-async def contar():
-    print("Começou contagem")
-    await asyncio.sleep(20)
-    print("Terminou contagem")
-
-
-async def do_something():
-    print("Começou")
-    await contar()
-    await asyncio.sleep(15)
-    print("terminou")
-
-
-async def get_page(session, url, cat, subcat):
-    async with session.get(url, ssl=False) as r:
-        texto = await r.text()
-        soup = BeautifulSoup(texto, 'html.parser')
-
-        pds = await mec_paralelo.scrap_pagina_produtos(soup, cat, subcat, only_ref=False)
-        return pds
-
-
-async def get_all(session, urls):
-    tasks = []
-    for url in urls:
-        task = asyncio.create_task(get_page(session, url['link_subcategoria'], url['categoria'],
-                                 url['subcategoria']))
-        tasks.append(task)
-
-    results = await asyncio.gather(*tasks)
-    return results
-
-
-async def main3(urls):
-    async with aiohttp.ClientSession() as session:
-        data = await get_all(session, urls)
-        return data
-
-
-async def write_list_of_ngram_dicts(list_of_dicts, filename):
-    async with open(filename, 'w', encoding='utf-8') as file:
-        for dic in list_of_dicts:
-            data = json.dumps(dic)
-            file.write(data)
-            file.write("\n")
-
-
 @farmabot_client.on(events.CallbackQuery)
 async def callback(event):
-    print("EVENTO ", event)
-    logger.info(f"New event arrived: {event}")
     sender = await event.get_sender()
-    logger.info(f"From user {sender.id}")
+    logger.info(f"New event arrived from user {sender.id}: {event}")
 
-    # loop = farmabot_client.loop
-    #
-    # # loop.run_in_executor()
-    #
-    # id_user_telegram = sender.id
-    #
-    # df_usuarios = pd.read_csv('usuarios.csv')
-    #
-    # df2 = df_usuarios[df_usuarios['id_usuario_telegram'] == id_user_telegram]
-    # if not df2.empty:
-    #     if bool(df2['ativo'].values[0]) is True:
-    #         await event.respond('PODE SEGUIR')
-    #     else:
-    #         await event.respond('Você não possui permissão para acessar o bot. Fale com o adm.')
-    #         return
-    # else:
-    #     await event.respond('Usuário não cadastrado')
+    id_user_telegram = sender.id
+    status_usuario = 'INATIVO'
+    df_usuarios = pd.read_csv('files/usuarios.csv')
+    df2 = df_usuarios[df_usuarios['id_usuario_telegram'] == id_user_telegram]
+    if not df2.empty:
+        # if bool(df2['is_admin'].values[0]) is True:
+        #     await event.respond('Area ADMIN', buttons=BOTAO_AREA_ADMIN)
+        #     return
 
-    if event.data in BOTOES_MENU_FARMA_BOT.keys():
+        if bool(df2['ativo'].values[0]) is True:
+            await event.respond('PODE SEGUIR')
+            status_usuario = 'ATIVO'
+        else:
+            await event.respond('Você não possui permissão para acessar o bot. Fale com o adm.')
+            return
+    else:
+        await event.respond('Usuário não cadastrado. Por favor realize o cadastro pelo botão abaixo',
+                            buttons=BOTAO_CADASTRO_FARMABOT)
+
+    if event.data == b'botaoCadastroFarmaBot':
+        await event.respond('Vamos iniciar o cadastro')
+        chat_with_user = await farmabot_client.get_entity(PeerUser(sender.id))
+        async with farmabot_client.conversation(chat_with_user, timeout=300) as conv:
+
+            try:
+                await conv.send_message('🤖 Verificamos que você ainda não possui cadastro em nosso sistema.')
+                await conv.send_message('Para realizar o cadastro, por favor, informe seu nome')
+                await conv.send_message('O nome deve ser informado no seguinte padrão: João Silva, apenas Nome('
+                                        'espaço)Sobrenome')
+                name = await conv.get_response()
+                name = name.text
+                print("Nome: ", name)
+
+                while not is_valid_name(name):
+                    await conv.send_message("Ops! O nome não está no formato correto. Por favor, digite um nome "
+                                            "válido.")
+                    name = await conv.get_response()
+                    name = name.text
+
+                await conv.send_message('Falta pouco! Agora precisamos que informe seu número de Tel. no '
+                                        'formato: +55DDDXXXXXXXXX')
+                await conv.send_message('Por exemplo, se seu número de Tel. é (79) 99878-1950, Você digita '
+                                        'assim:  +5579998781950')
+                phone_number_user = await conv.get_response()
+                phone_number_user = phone_number_user.text
+
+                while not is_valid_phone_number(phone_number_user):
+                    await conv.send_message("Este número de Tel. não está no formato correto! Por favor, tente "
+                                            "novamente")
+                    phone_number_user = await conv.get_response()
+                    phone_number_user = phone_number_user.text
+                    is_valid_phone_number(phone_number_user)
+
+                print("Dados do usuario: ", name, sender.id, phone_number_user)
+                new_user = {
+                    'id_usuario_telegram': sender.id,
+                    'numero_tel': phone_number_user,
+                    'ativo': False,
+                    'is_admin': False,
+                    'data_expiracao': None
+                }
+                new_df = pd.DataFrame([new_user])
+                df_usuarios = pd.concat([df_usuarios, new_df], axis=0, ignore_index=True)
+
+                # df_usuarios = df_usuarios.append(new_user, ignore_index=True)
+                df_usuarios.to_csv('usuarios.csv')
+                await conv.send_message(f"Prazer em te conhecer, {name}{phone_number_user}")
+                await conv.send_message('🕐 Cadastrado com sucesso!...')
+            except asyncio.TimeoutError as timeout_error:
+                await conv.send_message('Ops!Devido a inatividade por mais de 5min, vamos finalizar seu '
+                                        'atendimento! 👋🏻')
+                print("Erro TimeOut: ", timeout_error)
+            except Exception as erro:
+                LINK_SUPORTE = "https://t.me/suportegreenvest"
+                print("Ocorreu um erro Genérico:", erro)
+                await conv.send_message('Ocorreu um erro ao realizar seu cadastro. Entre em contato com o suporte '
+                                        'através do link para resolver o mais rápido possível. \n' + LINK_SUPORTE)
+
+    elif event.data in BOTOES_MENU_FARMA_BOT.keys() and status_usuario == 'ATIVO':
         if event.data == b'botaoBuscaPorCNP':
             chat_with_user = await farmabot_client.get_entity(PeerUser(sender.id))
             async with farmabot_client.conversation(chat_with_user, timeout=300) as conv:
@@ -141,18 +133,12 @@ async def callback(event):
                 resposta_usuario = await conv.get_response()
 
                 while resposta_usuario.file is None:
-                    await conv.send_message('choose', buttons=[[Button.inline('Yes'), Button.inline('No')]])
-
-                    await conv.send_message('<b> Want More ? </b>', parse_mode='html', buttons=[
-                        [Button.text('Yes', resize=True, single_use=True),
-                         Button.text('No', resize=True, single_use=True)],
-                        [Button.text('More', resize=True, single_use=True)]])
-                    await conv.send_message('🤖 Ops, não recebi nenhum arquivo!')
                     await conv.send_message(
                         '🤖 Por favor, envie o arquivo com a lista de CNPs nos formatos .csv ou .xlsx')
 
                     resposta_usuario = await conv.get_response()
 
+                # TODO: Verificar se o arquivo enviado está nos formatos exigidos
                 sent_filename = resposta_usuario.file.name
                 print(sent_filename)
 
@@ -173,7 +159,7 @@ async def callback(event):
                         f'🤖 Arquivo recebido com sucesso! Aguarde enquanto faço a coleta de dados de '
                         f'{len(lista_cnps)} CNPs informados no arquivo')
 
-                    urls_cnps = [f'https://www.mecofarma.com/pt/search/ajax/suggest/?q={cnp}' for cnp in lista_cnps]
+                    urls_cnps = [f'{URL_BUSCA_POR_CNP}{cnp}' for cnp in lista_cnps]
 
                     print(len(urls_cnps))
 
@@ -223,33 +209,33 @@ async def callback(event):
                 await event.respond("Iniciando processo de coleta de dados. Buscando todas as URLs de subcategorias."
                                     "Por favor, aguarde... ⏳", parse_mode='html')
 
-                # subcategorias: List = await mec_paralelo.obtem_links_subcategorias(CATEGORIAS_MECOFARMA)
+                subcategorias: List = await mec_paralelo.obtem_links_subcategorias(CATEGORIAS_MECOFARMA)
 
-                subcategorias = [1, 2]
+                # subcategorias = [1, 2]
                 if len(subcategorias) > 0:
                     # dft = pd.DataFrame.from_dict(subcategorias)
                     # dft.to_csv('subcategorias.csv')
                     # xx = dft.groupby(['categoria', 'subcategoria'])['qtd_itens_subcategoria'].mean()
                     # agrupado = xx.to_frame()
                     # total_itens = int(agrupado['qtd_itens_subcategoria'].sum())
-                    total_itens = 2
-                    await event.respond(f"Opa! {len(subcategorias)} URLs encontradas e {total_itens} produtos disponíveis")
+                    # total_itens = 2
+                    # await event.respond(f"Opa! {len(subcategorias)} URLs encontradas e {total_itens} produtos disponíveis")
                     await event.respond(f"Por favor, aguarde enquanto é feito o scraping...")
 
-                    subcategorias = [
-                        {
-                            'categoria': 'Farmácia',
-                            'subcategoria': 'Dor e Febre',
-                            'qtd_itens_subcategoria': 72,
-                            'link_subcategoria': 'https://www.mecofarma.com/pt/farmacia/dor-e-febre?p=1&product_list_limit=36'
-                        },
-                        {
-                            'categoria': 'Farmácia',
-                            'subcategoria': 'Dor e Febre',
-                            'qtd_itens_subcategoria': 72,
-                            'link_subcategoria': 'https://www.mecofarma.com/pt/farmacia/dor-e-febre?p=2&product_list_limit=36'
-                        }
-                    ]
+                    # subcategorias = [
+                    #     {
+                    #         'categoria': 'Farmácia',
+                    #         'subcategoria': 'Dor e Febre',
+                    #         'qtd_itens_subcategoria': 72,
+                    #         'link_subcategoria': 'https://www.mecofarma.com/pt/farmacia/dor-e-febre?p=1&product_list_limit=36'
+                    #     },
+                    #     {
+                    #         'categoria': 'Farmácia',
+                    #         'subcategoria': 'Dor e Febre',
+                    #         'qtd_itens_subcategoria': 72,
+                    #         'link_subcategoria': 'https://www.mecofarma.com/pt/farmacia/dor-e-febre?p=2&product_list_limit=36'
+                    #     }
+                    # ]
 
                     start = time.time()
                     _produtos = await mec_paralelo.scrape_subcategories(subcategorias)
@@ -277,7 +263,8 @@ async def callback(event):
                         await event.respond(msg_sucesso, parse_mode='html')
                         await event.respond("Ufa!😅 Coleta finalizada. Aqui está seu arquivo 👇", parse_mode='html')
                         await farmabot_client.send_file(user, nome_arquivo)
-                        await event.respond("Até a próxima 👋🏻!\nSempre que quiser acessar o menu digite /mecofarma", parse_mode='html')
+                        await event.respond("Até a próxima 👋🏻!\nSempre que quiser acessar o menu digite /mecofarma",
+                                            parse_mode='html')
                     else:
                         await event.respond(f"Deu ruim")
                 else:
@@ -370,7 +357,7 @@ async def callback(event):
                 await event.respond(f"Ocorreu um erro ao realizar o scraping. Por favor, tente novamente em instantes",
                                     parse_mode='html')
 
-    if event.data == b'botaoIniciarAppySaude':
+    elif event.data == b'botaoIniciarAppySaude':
         try:
             start = time.time()
             await event.respond("Iniciando", parse_mode='html')
@@ -379,7 +366,8 @@ async def callback(event):
             page = make_request(URL_LISTAR_PRODUTOS_APPY_SAUDE, access_token)
 
             totaproducts_list = page.json()['TotalCount']
-            await event.respond(f"Iniciando coleta de <b>{totaproducts_list}</b> produtos disponíveis", parse_mode='html')
+            await event.respond(f"Iniciando coleta de <b>{totaproducts_list}</b> produtos disponíveis",
+                                parse_mode='html')
 
             products_list = scrap_pagina_produtos(page, access_token)
 
@@ -397,7 +385,7 @@ async def callback(event):
             await event.respond(msg_sucesso, parse_mode='html')
             await event.respond("Ufa!😅 Coleta finalizada. Aqui está seu arquivo 👇", parse_mode='html')
             await farmabot_client.send_file(user, nome_arquivo)
-        except Exception as e:     
+        except Exception as e:
             print(e)
             await event.respond("Ocorreu um erro ao coletar dados para este siste. Por favor, tente novamente.",
                                 parse_mode='html')
@@ -419,13 +407,14 @@ async def appysaude(event):
 
 
 def main():
-    print(f"[{datetime.now()}]: FarmaBot is ready ... Awaiting requests")
+    logger.info(f"FarmaBot is ready ... Awaiting requests")
     farmabot_client.run_until_disconnected()
 
 
 if __name__ == '__main__':
     import multiprocessing
     import platform
-    print(f"Plataform: {platform.system()}")
-    print(f"This machine has {multiprocessing.cpu_count()} CPU cores")
+
+    logger.info(f"Plataform: {platform.system()}")
+    logger.info(f"This machine has {multiprocessing.cpu_count()} CPU cores")
     main()
