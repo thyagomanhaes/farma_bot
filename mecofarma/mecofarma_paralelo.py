@@ -8,9 +8,10 @@ import requests
 
 from typing import Dict, List
 from bs4 import BeautifulSoup
-from mecofarma.mecofarma import scrap_produtos, scrap_pagina_produtos
+from mecofarmax import scrap_produtos, scrap_pagina_produtos
 
 import aiohttp
+import threading
 
 
 async def make_request_categoria(categoria: Dict):
@@ -63,13 +64,12 @@ async def request_subcategoria(link_subcategoria, nome_categoria, subcategoria):
     return lista_produtos
 
 
-async def request_subcategory(client, link_subcategoria):
+async def request_subcategory(client, link_subcategoria, categoria, subcategoria):
     response = await client.get(link_subcategoria)
     soup = BeautifulSoup(response.text, 'html.parser')
     print(f"Request to {link_subcategoria}")
     if soup is not None:
-        products = await scrap_pagina_produtos(link_subcategoria, None, None, False)
-        print(f"Products list : {len(products)}")
+        products = await scrap_pagina_produtos(link_subcategoria, categoria, subcategoria, False)
         return products
 
     return soup
@@ -80,11 +80,12 @@ def request_por_cnp(url_cnp: str):
     response_page = requests.get(url_cnp)
     lista_produtos = response_page.json()
     if len(lista_produtos) > 0:
-        print(url_cnp)
+        print(f"Existe: {url_cnp}")
         for produto in lista_produtos:
             produto['cnp'] = url_cnp.split('?q=')[1]
         return lista_produtos
 
+    print(f"Não existe: {url_cnp}")
     return []
 
 
@@ -116,16 +117,21 @@ async def scrape_subcategories(subcategories):
     """
     results = []
     _start = time.time()
-    async with httpx.AsyncClient(timeout=None) as client:
-        async_tasks = [request_subcategory(client, categoria['link_subcategoria']) for categoria in subcategories]
+
+    async with aiohttp.ClientSession(trust_env=True) as session:
+        for categoria in subcategories:
+            async with session.get(categoria['link_subcategoria'], ssl=False) as resp:
+                body = await resp.text()
+
+    async with httpx.AsyncClient() as client:
+        async_tasks = [request_subcategory(
+            client, categoria['link_subcategoria'],
+            categoria['categoria'], categoria['subcategoria']) for categoria in subcategories]
 
         for result in asyncio.as_completed(async_tasks):
             response = await result
             results.append(response)
-
-        # total += results
-        print(f"Completed in {time.time() - _start:.2f}")
-
+    print(f"Coleta de produtos finalizada em {time.time() - _start:.2f}")
     return results
 
 
@@ -246,7 +252,6 @@ def transform_products_list(products: List) -> List:
             produto_final = {
                 'nome': title,
                 'preco': price,
-                # 'image': image,
                 'cnp': cnp,
                 'ref': ref_number,
                 'link_produto': url,

@@ -6,7 +6,7 @@ from bs4 import BeautifulSoup
 import aiohttp
 import phonenumbers
 import requests
-import mecofarma.mecofarma_paralelo as mec_paralelo
+import mecofarma_paralelo as mec_paralelo
 
 CANAL_NOTIFICACOES_BETFAIR = "1001412054755"
 

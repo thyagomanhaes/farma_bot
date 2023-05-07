@@ -1,3 +1,4 @@
+import asyncio
 import os
 import time
 from typing import List
@@ -86,15 +87,20 @@ class bcolors:
     UNDERLINE = '\033[4m'
 
 
-async def exportar_produtos_para_excel(df, nome_categoria, is_cnp=False):
-    if is_cnp:
-        filename_excel = f"mecofarma-resultado-busca-por-cnp-{datetime.now().date()}.xlsx"
-        df_ordenado = df.sort_values(['nome'])
-    else:
-        filename_excel = f"mecofarma-{nome_categoria}-{datetime.now().date()}.xlsx"
-        df_ordenado = df.sort_values(['categoria', 'subcategoria', 'nome'])
-
+async def exportar_produtos_para_excel_cnp(df_cnp):
+    filename_excel = f"mecofarma-resultado-busca-por-cnp-{datetime.now().date()}.xlsx"
+    df_ordenado = df_cnp.sort_values(['nome'])
     df_ordenado.to_excel(filename_excel, index=False)
+
+    return filename_excel
+
+
+async def exportar_produtos_para_excel(df, nome_categoria):
+    filename_excel = f"mecofarma-{nome_categoria}-{datetime.now().date()}.xlsx"
+    df_ordenado = df.sort_values(['categoria', 'subcategoria', 'nome'])
+
+    path_mecofarma_files = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'files')
+    df_ordenado.to_excel(f'{path_mecofarma_files}/{filename_excel}', index=False)
 
     return filename_excel
 
@@ -116,111 +122,109 @@ def realiza_request(url):
 
 
 async def scrap_detalhes_produto(url):
-    async with httpx.AsyncClient(timeout=None) as client:
-        response = await client.get(url)
-        soup2 = BeautifulSoup(response.text, 'html.parser')
 
-        if soup2 is not None:
-            print(f"Buscando detalhes em: {url}")
-            product_name = soup2.find('h1', {"class": "page-title"}).text.strip()
-            cnp = soup2.find('span', {"class": "cnp"})
-            if cnp is not None:
-                cnp = cnp.text.strip()
-                cnp_number = cnp.split('CNP: ')[1]
-            else:
-                cnp_number = None
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url, ssl=False) as response:
+            response = await response.text()
+            soup2 = BeautifulSoup(response, 'html.parser')
 
-            ref = soup2.find('span', {"class": "sku"})
+            if soup2 is not None:
+                print(f"Buscando detalhes do produto em: {url}")
+                product_name = soup2.find('h1', {"class": "page-title"}).text.strip()
+                cnp = soup2.find('span', {"class": "cnp"})
+                if cnp is not None:
+                    cnp = cnp.text.strip()
+                    cnp_number = cnp.split('CNP: ')[1]
+                else:
+                    cnp_number = None
 
-            ref = ref.text.strip() if ref is not None else None
+                ref = soup2.find('span', {"class": "sku"})
 
-            final_price = soup2.find('div', {"class": "price-final_price"})
+                ref = ref.text.strip() if ref is not None else None
 
-            if final_price is not None:
-                final_price = final_price.text.strip()
-                preco = final_price.split('\n')[0]
-            else:
-                preco = None
+                final_price = soup2.find('div', {"class": "price-final_price"})
 
-            print(product_name, cnp, cnp_number, preco)
-            return cnp, preco, ref
+                if final_price is not None:
+                    final_price = final_price.text.strip()
+                    preco = final_price.split('\n')[0]
+                else:
+                    preco = None
 
-        return None, None, None
+                print(product_name, cnp, cnp_number, preco)
+                return cnp, preco, ref
+
+    return None, None, None
 
 
 async def scrap_pagina_produtos(url_pagina_produtos, cat, subcat, only_ref=False) -> List:
     produtos = []
 
-    async with httpx.AsyncClient(timeout=None) as client:
-        response = await client.get(url_pagina_produtos)
-        soup2 = BeautifulSoup(response.text, 'html.parser')
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url_pagina_produtos, ssl=False) as response:
+            response = await response.text()
 
-        if soup2 is not None:
-            list_itens = soup2.find_all('li', {"class": "product-item"})
+            soup2 = BeautifulSoup(response, 'html.parser')
 
-            if only_ref:
-                div_p = soup2.find('div', {"class": "product-main-attributes"})
-                if div_p is not None:
-                    div_p = div_p.text.strip()
-                    if 'REF' in div_p:
-                        ref_number = div_p.split('REF: ')[1]
-                        return ref_number
+            if soup2 is not None:
+                list_itens = soup2.find_all('li', {"class": "product-item"})
 
-            for li in list_itens:
-                div_product_item_info = li.find('div', {"class": "product-item-info"})
-                product_item_link = div_product_item_info.find('a', {'class': 'product-item-link'})
+                if only_ref:
+                    div_p = soup2.find('div', {"class": "product-main-attributes"})
+                    if div_p is not None:
+                        div_p = div_p.text.strip()
+                        if 'REF' in div_p:
+                            ref_number = div_p.split('REF: ')[1]
+                            return ref_number
 
-                div_product_categories = li.find('div', {"class": "product-categories"})
-                cat_links = div_product_categories.find_all('a')
+                for li in list_itens:
+                    div_product_item_info = li.find('div', {"class": "product-item-info"})
+                    product_item_link = div_product_item_info.find('a', {'class': 'product-item-link'})
 
-                div_unavailable = div_product_item_info.find('div', {"class": "unavailable"})
+                    div_unavailable = div_product_item_info.find('div', {"class": "unavailable"})
+                    status = "Disponível" if div_unavailable is None else "Indisponível"
 
-                status = "Disponível" if div_unavailable is None else "Indisponível"
+                    div_final_price = li.find('div', {"class": "price-final_price"})
+                    if div_final_price is not None:
+                        price = div_final_price.find('span', {"class": "price"}).text
+                    else:
+                        price = None
 
-                div_final_price = li.find('div', {"class": "price-final_price"})
-                if div_final_price is not None:
-                    price = div_final_price.find('span', {"class": "price"}).text
-                else:
-                    price = None
+                    product_name = product_item_link.text.strip()
+                    product_link = product_item_link['href']
 
-                product_name = product_item_link.text.strip()
-                product_link = product_item_link['href']
+                    await asyncio.sleep(2)
+                    # cnp, preco, ref = await scrap_detalhes_produto(product_link)
+                    cnp, preco, ref = None, None, None
 
-                print(f"\nAcessando URL do produto ({product_name}): {product_link}")
-                cnp, preco, ref = await scrap_detalhes_produto(product_link)
+                    n_price = None
+                    cnp_number = None
+                    ref_number = None
 
-                date_scraping = datetime.now()
-                n_price = None
-                cnp_number = None
-                ref_number = None
+                    if price is not None:
+                        n_price = price.split('\xa0AKZ')[0]
 
-                if price is not None:
-                    n_price = price.split('\xa0AKZ')[0]
+                    if cnp is not None:
+                        cnp_number = cnp.split('CNP: ')[1]
+                    if ref is not None:
+                        ref_number = ref.split('REF: ')[1]
 
-                if cnp is not None:
-                    cnp_number = cnp.split('CNP: ')[1]
-                if ref is not None:
-                    ref_number = ref.split('REF: ')[1]
+                    produto = {
+                        'categoria': cat,
+                        'subcategoria': subcat,
+                        'nome': product_name,
+                        'cnp': cnp_number,
+                        'ref': ref_number,
+                        'preco': n_price,
+                        'status': status,
+                        'fornecedor': "mecofarma",
+                        'data_scraping': datetime.now(),
+                        'link_produto': product_link
+                    }
+                    print(produto)
 
-                # print(f"{cat_name} | {product_name} | {cnp} | {ref} | {preco} | {date_scraping}")
-                print(
-                    f"{cat} | {subcat} | {product_name} | {n_price} | {cnp_number} | {ref_number} | {status} | {date_scraping}")
-                produto = {
-                    'categoria': cat,
-                    'subcategoria': subcat,
-                    'nome': product_name,
-                    'cnp': cnp_number,
-                    'ref': ref_number,
-                    'preco': n_price,
-                    'status': status,
-                    'fornecedor': "mecofarma",
-                    'data_scraping': date_scraping,
-                    'link_produto': product_link
-                }
+                    produtos.append(produto)
 
-                produtos.append(produto)
-
-            return produtos
+    return produtos
 
 
 def scrap_por_termo_busca(termo):
