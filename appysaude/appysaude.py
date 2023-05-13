@@ -117,7 +117,7 @@ def iniciar_scraping():
         print("Token validado com sucesso!!!")
         print("Iniciando scraping dos produtos...")
         count_total_products = page.json()['TotalCount']
-        count_total_products = 500
+        # count_total_products = 500
 
         print(f"Total de produtos disponíveis: {count_total_products}")
 
@@ -148,7 +148,8 @@ def iniciar_scraping():
         end = time.time()
 
         total_time = round(end - start, 2)
-        print(f"\nTempo para coletar {len(lista_produtos)} dados: {total_time} segundos")
+        send_message_to_telegram(f"\nTempo para coletar {len(lista_produtos)} dados: {total_time} segundos",
+                                 CANAL_NOTIFICACOES_BETFAIR)
 
 
 if __name__ == '__main__':

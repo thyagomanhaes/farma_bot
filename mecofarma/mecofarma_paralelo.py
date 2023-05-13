@@ -8,7 +8,7 @@ import requests
 
 from typing import Dict, List
 from bs4 import BeautifulSoup
-from mecofarmax import scrap_produtos, scrap_pagina_produtos
+from mecofarma.mecofarmax import scrap_produtos, scrap_pagina_produtos
 
 import aiohttp
 import threading
@@ -218,7 +218,7 @@ def salvar_produto(produto):
         print(e)
 
 
-def transform_products_list(products: List) -> List:
+async def transform_products_list(products: List) -> List:
     lista_final_produtos = []
 
     '''
@@ -237,7 +237,7 @@ def transform_products_list(products: List) -> List:
             cnp = produto.get('cnp')
 
             if 'catalog/product/view' in url:
-                ref_number = scrap_pagina_produtos(url, None, None, True)
+                ref_number = await scrap_pagina_produtos(url, None, None, True)
             else:
                 ref_number = url.split('pt/')[1]
 

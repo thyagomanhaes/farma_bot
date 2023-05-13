@@ -32,7 +32,7 @@ FARMABOT_TELEGRAM_API_ID = config('FARMABOT_TELEGRAM_API_ID')
 FARMABOT_TELEGRAM_API_HASH = config('FARMABOT_TELEGRAM_API_HASH')
 GREENVESTBOT_DEV_BOT_TOKEN = config('GREENVESTBOT_DEV_BOT_TOKEN')
 
-# Creating a bot cliente from string session
+# Creating a bot client from string session
 farmabot_client = TelegramClient(
     StringSession(GREENVESTBOT_DEV_STRING_SESSION_BOT),
     int(FARMABOT_TELEGRAM_API_ID),
@@ -42,11 +42,13 @@ farmabot_client = TelegramClient(
 APP_ROOT = os.path.dirname(os.path.abspath(__file__))
 APP_STATIC = os.path.join(APP_ROOT, 'static')
 
+USUARIOS_FILE = 'usuarios.csv'
+
 
 async def verify_user(sender):
     id_user_telegram = sender.id
 
-    df_users = pd.read_csv(os.path.join(APP_STATIC, 'usuarios.csv'))
+    df_users = pd.read_csv(os.path.join(APP_STATIC, USUARIOS_FILE))
     df_user = df_users[df_users['id_usuario_telegram'] == id_user_telegram]
 
     if not df_user.empty:
@@ -55,7 +57,7 @@ async def verify_user(sender):
 
 
 async def read_csv_users():
-    df_users = pd.read_csv(os.path.join(APP_STATIC, 'usuarios.csv'))
+    df_users = pd.read_csv(os.path.join(APP_STATIC, USUARIOS_FILE))
     return df_users
 
 
@@ -113,12 +115,11 @@ async def callback(event):
                     }
                     new_df = pd.DataFrame([new_user])
 
-                    df_users = pd.read_csv(os.path.join(APP_STATIC, 'usuarios.csv'))
+                    df_users = pd.read_csv(os.path.join(APP_STATIC, USUARIOS_FILE))
 
                     df_users = pd.concat([df_users, new_df], axis=0, ignore_index=True)
 
-                    # df_usuarios = df_usuarios.append(new_user, ignore_index=True)
-                    df_users.to_csv(os.path.join(APP_STATIC, 'usuarios.csv'), index=False)
+                    df_users.to_csv(os.path.join(APP_STATIC, USUARIOS_FILE), index=False)
                     await conv.send_message(f"Prazer em te conhecer, {name}!")
                     await conv.send_message('🕐 Cadastro realizado com sucesso! Fale com o ADM do FarmaBot para ativar sua conta')
                 except asyncio.TimeoutError as timeout_error:
@@ -145,7 +146,7 @@ async def callback(event):
             await event.respond('Qual usuário você deseja ativar?')
             df_users = await read_csv_users()
             msg = "Nº | Nome | Ativo\n"
-            names = []
+
             for i, user in df_users.iterrows():
                 username = user.get('nome')
                 ativo = user.get('ativo')
@@ -160,8 +161,8 @@ async def callback(event):
                     name = await conv.get_response()
                     name = name.text
                     print("Nome: ", name)
-                    indexes = [i for i in range(df_users.shape[0])]
-                    while int(name) not in indexes:
+                    indexes = [str(i) for i in range(df_users.shape[0])]
+                    while name not in indexes:
                         await conv.send_message("Ops! O nome não está no formato correto. Por favor, digite um nome "
                                                 "válido.")
                         name = await conv.get_response()
@@ -169,6 +170,7 @@ async def callback(event):
 
                     df_users.at[int(name), 'ativo'] = True
                     df_users.to_csv(os.path.join(APP_STATIC, 'usuarios.csv'), index=False)
+                    await conv.send_message(f"Usuário {name} ativado com sucesso!")
                 finally:
                     print("ok")
         if event.data == b'botaoIniciarAppySaude':
@@ -180,7 +182,6 @@ async def callback(event):
                 await event.respond("Aqui está seu arquivo 👇", parse_mode='html')
 
                 path_appysaude_files = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'appysaude/files')
-                # nome_arquivo = f"{path_mecofarma_files}/mecofarma-{NOME_ARQUIVO_FINAL}-{datetime.now().date()}.xlsx"
                 arquivos = [file for file in os.listdir(path_appysaude_files) if
                             file.startswith('appysaude')]
                 nome_ultimo_arquivo = arquivos[-1]
@@ -245,7 +246,7 @@ async def callback(event):
                             for produto in l_produto:
                                 lista_produtos.append(produto)
 
-                        logger.info("Qtd produtos na Lista final: ", len(lista_produtos))
+                        logger.info(f"Qtd produtos na Lista final: {len(lista_produtos)}")
 
                         l_final = mecofarma_paralelo.transform_products_list(lista_produtos)
 
@@ -277,7 +278,6 @@ async def callback(event):
                     await event.respond("Aqui está seu arquivo 👇", parse_mode='html')
 
                     path_mecofarma_files = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'mecofarma/files')
-                    # nome_arquivo = f"{path_mecofarma_files}/mecofarma-{NOME_ARQUIVO_FINAL}-{datetime.now().date()}.xlsx"
                     arquivos = [file for file in os.listdir(path_mecofarma_files) if file.startswith('mecofarma-todas-as-categorias-2023')]
                     nome_ultimo_arquivo = arquivos[-1]
                     nome_arquivo = f"{path_mecofarma_files}/{nome_ultimo_arquivo}"
@@ -295,7 +295,7 @@ async def callback(event):
 @farmabot_client.on(events.NewMessage(pattern='/mecofarma'))
 async def mecofarma(event):
     sender = await event.get_sender()
-    logger.info("/appysaude requested")
+    logger.info("/mecofarma requested")
     logger.info(f"New event arrived from user {sender.id}: {event}")
     user = await verify_user(sender)
     logger.info(f"User from CSV file: {user}")
@@ -322,8 +322,23 @@ async def appysaude(event):
     sender = await event.get_sender()
     logger.info("/appysaude requested")
     logger.info(f"New event arrived from user {sender.id}: {event}")
-    await event.respond('🤖 Bem-vindo ao Web Scraping do site https://www.appysaude.co.ao/home')
-    await event.respond("Clique no botão abaixo para obter o último arquivo mais recente", buttons=BOTOES_APPYSAUDE)
+    user = await verify_user(sender)
+    logger.info(f"User from CSV file: {user}")
+    if user is None:
+        logger.info(f"User not found")
+        await event.respond(
+            "Você não possui cadastro no FarmaBot. Por favor, clique no botão para iniciar o cadastro.",
+            buttons=BOTAO_CADASTRO_FARMABOT)
+    elif user['ativo'] is False:
+        logger.info(f"User {user} is inactive")
+        await event.respond("Você não está ativo. Por favor, fale com o ADM do FarmaBot para ativar sua conta",
+                            parse_mode='html')
+    elif user['is_admin']:
+        await event.respond('Escolha uma categoria para iniciar o processo de coleta de dados',
+                            buttons=BOTOES_ADMIN_MECOFARMA)
+    else:
+        await event.respond('🤖 Bem-vindo ao Web Scraping do site https://www.appysaude.co.ao/home')
+        await event.respond("Clique no botão abaixo para obter o último arquivo mais recente", buttons=BOTOES_APPYSAUDE)
 
 
 def main():

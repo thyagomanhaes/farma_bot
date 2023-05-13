@@ -101,7 +101,6 @@ async def scrape_subcategories():
 
 
 async def bound_fetch(sem, product, session):
-    # Getter function with semaphore.
     async with sem:
         updated_product = await fetch(product, session)
         return updated_product
@@ -168,12 +167,12 @@ async def fetch(product, session):
 
 if __name__ == '__main__':
     try:
-        # loop = asyncio.get_event_loop()
-        # loop.run_until_complete(scrape_subcategories())
-        # logger.info("Scraping of subcategories finished")
-        # time.sleep(1)
-        # logger.info("Starting scrape of products to get more info of each one")
-        # loop.run_until_complete(scrape_products_details())
+        loop = asyncio.get_event_loop()
+        loop.run_until_complete(scrape_subcategories())
+        logger.info("Scraping of subcategories finished")
+        time.sleep(1)
+        logger.info("Starting scrape of products to get more info of each one")
+        loop.run_until_complete(scrape_products_details())
         send_message_to_telegram("scraper_mecofarma executado com sucesso!", CANAL_NOTIFICACOES_BETFAIR)
     except Exception as e:
         send_message_to_telegram(f"Erro ao executar script Scraper AppySaude: {e}", CANAL_NOTIFICACOES_BETFAIR)
