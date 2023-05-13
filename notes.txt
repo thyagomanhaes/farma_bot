@@ -1,0 +1,15 @@
+# I/O Tasks (I/O-Bound)
+IO (Input/Output) tasks would be anything that performs an external connection - be it an HTTP request or storing scraped data to a database
+
+# CPU Tasks (CPU-bound)
+CPU tasks such as parsing scraped HTMLs, loading JSON data, natural language parsing, and so on.
+
+To deal with perfomance in web scraping projects:
+So to summarize all of this: multi processing for CPU performance and asyncio for IO performance.
+
+Async Requests
+IO block is when our program has to wait for an external system to respond.
+For example, making a HTTP connection - our program sends a request and waits for the web server to send it a response. This could be several seconds of waiting.
+
+Asynchronous programs use a manager (called an event loop) that can pause some functions and let others take over in the meantime.
+In other words, while one IO-blocking operation (like a request) is waiting the event loop will let the other operations take over.

@@ -1,171 +1,355 @@
 # -*- coding: utf-8 -*-
+import asyncio
 import logging
+import os
+import sys
 import time
 from datetime import datetime
+
 import pandas as pd
+from decouple import config
 from telethon import TelegramClient, events
 from telethon.sessions import StringSession
-from decouple import config
+from telethon.tl.types import PeerUser
 
-from appysaude.appysaude import scrap_pagina_produtos, exportar_produtos_para_excel, make_request
-from appysaude.constants import BOTOES_APPYSAUDE, URL_LISTAR_PRODUTOS_APPY_SAUDE
-from mecofarma.mecofarma import CATEGORIAS_MECOFARMA, transformar_lista_em_df
-from mecofarma.constants import BOTOES_MECOFARMA, BOTOES_MENU_FARMA_BOT
-import mecofarma.mecofarma_paralelo as mec_paralelo
-import mecofarma.mecofarma as mec
+import mecofarma.mecofarmax as mec
+from appysaude.constants import BOTOES_APPYSAUDE
+from constants import BOTAO_CADASTRO_FARMABOT, URL_BUSCA_POR_CNP
+from mecofarma import mecofarma_paralelo
+from mecofarma.constants import BOTOES_MECOFARMA, BOTOES_MENU_FARMA_BOT, BOTOES_ADMIN_MECOFARMA
+from utils import is_valid_name, is_valid_phone_number
 
-logging.basicConfig(format='%(asctime)s : %(levelname)s => %(message)s', level=logging.INFO,
-                    filename='farma_bot.log')
 
-STRING_SESSION_BOT_DEV = config('STRING_SESSION_BOT_DEV')
+logger = logging.getLogger(__name__)
+stream_handler = logging.StreamHandler(sys.stdout)  # Where logged messages will output, in this case direct to console
+formatter = logging.Formatter('[%(asctime)s : %(levelname)s] => %(message)s')
+stream_handler.setFormatter(formatter)
+logger.addHandler(stream_handler)
+logger.setLevel(logging.DEBUG)  # better to have too much log than not enough
+
+GREENVESTBOT_DEV_STRING_SESSION_BOT = config('GREENVESTBOT_DEV_STRING_SESSION_BOT')
 FARMABOT_TELEGRAM_API_ID = config('FARMABOT_TELEGRAM_API_ID')
 FARMABOT_TELEGRAM_API_HASH = config('FARMABOT_TELEGRAM_API_HASH')
-BOT_TOKEN_GREENVEST_BOT_DEV = config('BOT_TOKEN_GREENVEST_BOT_DEV')
+GREENVESTBOT_DEV_BOT_TOKEN = config('GREENVESTBOT_DEV_BOT_TOKEN')
 
-# Instanciando o bot a partir da string de sessão
+# Creating a bot client from string session
 farmabot_client = TelegramClient(
-    StringSession(STRING_SESSION_BOT_DEV),
-    int(FARMABOT_TELEGRAM_API_ID), 
+    StringSession(GREENVESTBOT_DEV_STRING_SESSION_BOT),
+    int(FARMABOT_TELEGRAM_API_ID),
     FARMABOT_TELEGRAM_API_HASH
-).start(bot_token=BOT_TOKEN_GREENVEST_BOT_DEV)
+).start(bot_token=GREENVESTBOT_DEV_BOT_TOKEN)
+
+APP_ROOT = os.path.dirname(os.path.abspath(__file__))
+APP_STATIC = os.path.join(APP_ROOT, 'static')
+
+USUARIOS_FILE = 'usuarios.csv'
+
+
+async def verify_user(sender):
+    id_user_telegram = sender.id
+
+    df_users = pd.read_csv(os.path.join(APP_STATIC, USUARIOS_FILE))
+    df_user = df_users[df_users['id_usuario_telegram'] == id_user_telegram]
+
+    if not df_user.empty:
+        user = df_user.to_dict('records')[0]
+        return user
+
+
+async def read_csv_users():
+    df_users = pd.read_csv(os.path.join(APP_STATIC, USUARIOS_FILE))
+    return df_users
 
 
 @farmabot_client.on(events.CallbackQuery)
 async def callback(event):
-    print("EVENTO ", event)
     sender = await event.get_sender()
+    logger.info(f"New event arrived from user {sender.id}: {event}")
 
-    if event.data in BOTOES_MENU_FARMA_BOT.keys():
-        if event.data == b'botaoTodasCategorias':
-            try:
-                msg = "Muito bem!🤩 \nVocê escolheu <b>Todas as categorias</b>!\n\nO site possui mais de 5.000 produtos e este processo pode demorar 30 minutos ⏳"
-                msg += "\n\nMas fica tranquilo! Assim que finalizar irei te avisar e será enviado um arquivo excel com todos os produtos coletados, tá? 😉"
-                await event.respond(msg, parse_mode='html')
+    user = await verify_user(sender)
+    logger.info(f"User from CSV file: {user}")
+    if user is None:
+        logger.info(f"User not found")
+        if event.data == b'botaoCadastroFarmaBot':
+            await event.respond('Vamos iniciar o cadastro')
+            chat_with_user = await farmabot_client.get_entity(PeerUser(sender.id))
+            async with farmabot_client.conversation(chat_with_user, timeout=300) as conv:
 
-                await event.respond("Iniciando processo de coleta de dados.Por favor, aguarde... ⏳", parse_mode='html')
+                try:
+                    await conv.send_message('🤖 Verificamos que você ainda não possui cadastro em nosso sistema.')
+                    await conv.send_message('Para realizar o cadastro, por favor, informe seu nome')
+                    await conv.send_message('O nome deve ser informado no seguinte padrão: João Silva, apenas Nome('
+                                            'espaço)Sobrenome')
+                    name = await conv.get_response()
+                    name = name.text
+                    print("Nome: ", name)
 
-                start = time.time()
-                products_list = mec_paralelo.executar_scrap_paralelo(CATEGORIAS_MECOFARMA)
+                    while not is_valid_name(name):
+                        await conv.send_message("Ops! O nome não está no formato correto. Por favor, digite um nome "
+                                                "válido.")
+                        name = await conv.get_response()
+                        name = name.text
 
-                df_products = transformar_lista_em_df(lista_produtos=products_list)
+                    await conv.send_message('Falta pouco! Agora precisamos que informe seu número de Tel. no '
+                                            'formato: +55DDDXXXXXXXXX')
+                    await conv.send_message('Por exemplo, se seu número de Tel. é (79) 99878-1950, Você digita '
+                                            'assim:  +5579998781950')
+                    phone_number_user = await conv.get_response()
+                    phone_number_user = phone_number_user.text
 
-                nome_arquivo = mec.exportar_produtos_para_excel(df_products, 'todas-as-categorias')
+                    while not is_valid_phone_number(phone_number_user):
+                        await conv.send_message("Este número de Tel. não está no formato correto! Por favor, tente "
+                                                "novamente")
+                        phone_number_user = await conv.get_response()
+                        phone_number_user = phone_number_user.text
+                        is_valid_phone_number(phone_number_user)
 
-                sender = await event.get_sender()
-                id_user_telegram = sender.id
+                    print("Dados do usuario: ", name, sender.id, phone_number_user)
+                    new_user = {
+                        'id_usuario_telegram': sender.id,
+                        'numero_tel': phone_number_user,
+                        'nome': name,
+                        'ativo': False,
+                        'is_admin': False,
+                        'data_expiracao': None
+                    }
+                    new_df = pd.DataFrame([new_user])
 
-                user = await farmabot_client.get_entity(id_user_telegram)
+                    df_users = pd.read_csv(os.path.join(APP_STATIC, USUARIOS_FILE))
 
-                end = time.time()
-                total_time = round(end - start, 2)
+                    df_users = pd.concat([df_users, new_df], axis=0, ignore_index=True)
 
-                msg_sucesso = f"{len(products_list)} produtos coletados com sucesso em {total_time} segundos!"
-
-                await event.respond(msg_sucesso, parse_mode='html')
-                await event.respond("Ufa!😅 Coleta finalizada. Aqui está seu arquivo 👇", parse_mode='html')
-                await farmabot_client.send_file(user, nome_arquivo)
-                await event.respond("Até a próxima 👋🏻!\nSempre que quiser acessar o menu digite /mecofarma", parse_mode='html')
-
-            except Exception as e:
-                await event.respond(f"Ocorreu um erro ao realizar o scraping. Por favor, tente novamente em instantes",
-                                    parse_mode='html')
+                    df_users.to_csv(os.path.join(APP_STATIC, USUARIOS_FILE), index=False)
+                    await conv.send_message(f"Prazer em te conhecer, {name}!")
+                    await conv.send_message('🕐 Cadastro realizado com sucesso! Fale com o ADM do FarmaBot para ativar sua conta')
+                except asyncio.TimeoutError as timeout_error:
+                    await conv.send_message('Ops!Devido a inatividade por mais de 5min, vamos finalizar seu '
+                                            'atendimento! 👋🏻')
+                    print("Erro TimeOut: ", timeout_error)
+                except Exception as erro:
+                    LINK_SUPORTE = "https://t.me/suportegreenvest"
+                    print("Ocorreu um erro Genérico:", erro)
+                    await conv.send_message('Ocorreu um erro ao realizar seu cadastro. Entre em contato com o suporte '
+                                            'através do link para resolver o mais rápido possível. \n' + LINK_SUPORTE)
         else:
-            url_categoria = BOTOES_MENU_FARMA_BOT.get(event.data).get('link')
-            nome_categoria = BOTOES_MENU_FARMA_BOT.get(event.data).get('nome')
-            msg = f"Muito bem!🤩 \nVocê escolheu <b>{nome_categoria}</b>!\n\nO procesos de coleta de dados pode demorar alguns minutos ⏳"
-            msg += f"\n\nMas fica tranquilo! Assim que finalizar irei te avisar e assim que o processo estiver finalizado te enviarei um arquivo excel com todos os produtos coletados, tá? 😉"
-            await event.respond(msg, parse_mode='html')
+            await event.respond(
+                "Você não possui cadastro no FarmaBot. Por favor, clique no botão para iniciar o cadastro.",
+                buttons=BOTAO_CADASTRO_FARMABOT)
+    elif user['ativo'] is False:
+        logger.info(f"User {user} is inactive")
+        await event.respond("Você não está ativo. Por favor, fale com o ADM do FarmaBot para ativar sua conta",
+                            parse_mode='html')
 
-            await event.respond("Iniciando processo de coleta de dados.Por favor, aguarde... ⏳", parse_mode='html')
+    elif user['ativo'] is True:
+        logger.info(f"User {user} is active and can use the bot")
+        if event.data == b'botaoGerenciarUsuarios':
+            await event.respond('Qual usuário você deseja ativar?')
+            df_users = await read_csv_users()
+            msg = "Nº | Nome | Ativo\n"
 
-            start_categoria = time.time()
+            for i, user in df_users.iterrows():
+                username = user.get('nome')
+                ativo = user.get('ativo')
+                nome = f"{i} | {username} | {ativo}\n"
+                msg += nome
 
+            await event.respond(msg)
+            chat_with_user = await farmabot_client.get_entity(PeerUser(sender.id))
+            async with farmabot_client.conversation(chat_with_user, timeout=300) as conv:
+                await conv.send_message('Digite o número correspondente')
+                try:
+                    name = await conv.get_response()
+                    name = name.text
+                    print("Nome: ", name)
+                    indexes = [str(i) for i in range(df_users.shape[0])]
+                    while name not in indexes:
+                        await conv.send_message("Ops! O nome não está no formato correto. Por favor, digite um nome "
+                                                "válido.")
+                        name = await conv.get_response()
+                        name = name.text
+
+                    df_users.at[int(name), 'ativo'] = True
+                    df_users.to_csv(os.path.join(APP_STATIC, 'usuarios.csv'), index=False)
+                    await conv.send_message(f"Usuário {name} ativado com sucesso!")
+                finally:
+                    print("ok")
+        if event.data == b'botaoIniciarAppySaude':
+            logger.info(f"Event {event.data} selected. Trying to get csv file...")
             try:
-                lista_url_categoria = []
-
-                for categoria in CATEGORIAS_MECOFARMA:
-                    if categoria.get('link') == url_categoria:
-                        lista_url_categoria.append(categoria)
-                        break
-
-                products_list = mec_paralelo.executar_scrap_paralelo(lista_url_categoria)
-
-                df = mec.transformar_lista_em_df(lista_produtos=products_list)
-
-                nome_arquivo = mec.exportar_produtos_para_excel(df, nome_categoria)
-
-                sender = await event.get_sender()
                 id_user_telegram = sender.id
-
                 user = await farmabot_client.get_entity(id_user_telegram)
 
-                end = time.time()
-                total_time = round(end - start_categoria, 2)
+                await event.respond("Aqui está seu arquivo 👇", parse_mode='html')
 
-                msg_sucesso = f"Ufa!😅 Coleta finalizada!" \
-                              f"\n\n{len(products_list)} produtos coletados com sucesso em {total_time} segundos!" \
-                              f"\n\nAqui está seu arquivo 👇"
-
-                await event.respond(msg_sucesso, parse_mode='html')
+                path_appysaude_files = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'appysaude/files')
+                arquivos = [file for file in os.listdir(path_appysaude_files) if
+                            file.startswith('appysaude')]
+                nome_ultimo_arquivo = arquivos[-1]
+                nome_arquivo = f"{path_appysaude_files}/{nome_ultimo_arquivo}"
                 await farmabot_client.send_file(user, nome_arquivo)
-                await event.respond("Até a próxima 👋🏻!\nSempre que quiser acessar o menu digite /mecofarma",
-                                    parse_mode='html')
-
+                logger.info(f"File {nome_arquivo} was sent with success to {id_user_telegram}")
             except Exception as e:
-                print("Erro ao realizar scraping: ", e)
-                await event.respond(f"Ocorreu um erro ao realizar o scraping. Por favor, tente novamente em instantes",
+                logger.error(e)
+                await event.respond(f"Ocorreu um erro ao buscar arquivo. Por favor, tente novamente em instantes",
                                     parse_mode='html')
+        elif event.data in BOTOES_MENU_FARMA_BOT.keys():
+            if event.data == b'botaoBuscaPorCNP':
+                chat_with_user = await farmabot_client.get_entity(PeerUser(sender.id))
+                async with farmabot_client.conversation(chat_with_user, timeout=300) as conv:
+                    await conv.send_message(
+                        '🤖 Por favor, envie um arquivo com a lista de CNPs nos formatos .csv ou .xlsx')
+                    resposta_usuario = await conv.get_response()
 
-    if event.data == b'botaoIniciarAppySaude':
-        try:
-            start = time.time()
-            await event.respond("Iniciando", parse_mode='html')
+                    while resposta_usuario.file is None:
+                        await conv.send_message(
+                            '🤖 Por favor, envie um arquivo. ')
 
-            access_token = 'xxx'
-            page = make_request(URL_LISTAR_PRODUTOS_APPY_SAUDE, access_token)
+                        resposta_usuario = await conv.get_response()
 
-            totaproducts_list = page.json()['TotalCount']
-            await event.respond(f"Iniciando coleta de <b>{totaproducts_list}</b> produtos disponíveis", parse_mode='html')
+                    # TODO: Verificar se o arquivo enviado está nos formatos exigidos
+                    sent_filename = resposta_usuario.file.name
+                    print(sent_filename)
 
-            products_list = scrap_pagina_produtos(page, access_token)
+                    current_path = os.getcwd()
 
-            df_produtos = pd.DataFrame.from_dict(products_list)
+                    arquivo_ja_existe = os.path.exists(current_path + "\\" + sent_filename)
 
-            nome_arquivo = exportar_produtos_para_excel(df_produtos)
+                    if not arquivo_ja_existe:
+                        arquivo_enviado = await farmabot_client.download_media(resposta_usuario, sent_filename)
+                    else:
+                        arquivo_enviado = sent_filename
 
-            user = await farmabot_client.get_entity(sender.id)
+                    df_enviado = pd.read_excel(arquivo_enviado)
 
-            end = time.time()
-            total_time = round(end - start, 2)
+                    if 'codigo' in df_enviado.columns:
+                        lista_cnps = list(df_enviado['codigo'])
+                        await conv.send_message(
+                            f'🤖 Arquivo recebido com sucesso! Aguarde enquanto faço a coleta de dados de '
+                            f'{len(lista_cnps)} CNPs informados no arquivo')
 
-            msg_sucesso = f"{len(products_list)} produtos coletados com sucesso em {total_time} segundos!"
+                        urls_cnps = [f'{URL_BUSCA_POR_CNP}{cnp}' for cnp in lista_cnps]
 
-            await event.respond(msg_sucesso, parse_mode='html')
-            await event.respond("Ufa!😅 Coleta finalizada. Aqui está seu arquivo 👇", parse_mode='html')
-            await farmabot_client.send_file(user, nome_arquivo)
-        except Exception as e:
-            print(e)
-            await event.respond("Ocorreu um erro ao coletar dados para este siste. Por favor, tente novamente.",
-                                parse_mode='html')
+                        start = time.time()
+
+                        _produtos = mecofarma_paralelo.scrap_urls_cnps(urls_cnps)
+
+                        end = time.time()
+
+                        total_time = round(end - start, 2)
+                        logger.info(f"\nTempo para coletar dados de {len(urls_cnps)} urls no site: {total_time} segundos")
+
+                        lista_produtos = []
+
+                        l_produtos = [lp._result for lp in _produtos]
+
+                        for l_produto in l_produtos:
+                            for produto in l_produto:
+                                lista_produtos.append(produto)
+
+                        logger.info(f"Qtd produtos na Lista final: {len(lista_produtos)}")
+
+                        l_final = mecofarma_paralelo.transform_products_list(lista_produtos)
+
+                        df = pd.DataFrame.from_records(l_final)
+
+                        path_mecofarma_files = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                                            'mecofarma/files')
+
+                        df.to_csv(f'{path_mecofarma_files}/mecofarma-resultado-busca-por-cnp-{datetime.now().date()}.xlsx')
+
+                        nome_arquivo = await mec.exportar_produtos_para_excel_cnp(df)
+
+                        sender = await event.get_sender()
+                        id_user_telegram = sender.id
+
+                        user = await farmabot_client.get_entity(id_user_telegram)
+
+                        await farmabot_client.send_file(user, nome_arquivo)
+                        logger.info(f'Arquivo enviado com sucesso para o usuario {id_user_telegram}')
+                    else:
+                        await conv.send_message(
+                            f'O arquivo precisa ter uma coluna chamada [codigo] ')
+            elif event.data == b'botaoTodasCategorias':
+                logger.info(f"Event {event.data} selected. Trying to get csv file...")
+                try:
+                    id_user_telegram = sender.id
+                    user = await farmabot_client.get_entity(id_user_telegram)
+
+                    await event.respond("Aqui está seu arquivo 👇", parse_mode='html')
+
+                    path_mecofarma_files = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'mecofarma/files')
+                    arquivos = [file for file in os.listdir(path_mecofarma_files) if file.startswith('mecofarma-todas-as-categorias-2023')]
+                    nome_ultimo_arquivo = arquivos[-1]
+                    nome_arquivo = f"{path_mecofarma_files}/{nome_ultimo_arquivo}"
+                    await farmabot_client.send_file(user, nome_arquivo)
+                    logger.info(f"File {nome_arquivo} was sent with success to {id_user_telegram}")
+                except Exception as e:
+                    logger.error(e)
+                    await event.respond(f"Ocorreu um erro ao buscar arquivo. Por favor, tente novamente em instantes",
+                                        parse_mode='html')
+            else:
+                # TODO: Buscar por cada categoria
+                pass
 
 
 @farmabot_client.on(events.NewMessage(pattern='/mecofarma'))
 async def mecofarma(event):
-    await event.respond('🤖 Bem-vindo ao Web Scraping do site https://www.mecofarma.com')
-    await event.respond('Escolha uma categoria para iniciar o processo de coleta de dados',
-                        buttons=BOTOES_MECOFARMA)
+    sender = await event.get_sender()
+    logger.info("/mecofarma requested")
+    logger.info(f"New event arrived from user {sender.id}: {event}")
+    user = await verify_user(sender)
+    logger.info(f"User from CSV file: {user}")
+    if user is None:
+        logger.info(f"User not found")
+        await event.respond(
+            "Você não possui cadastro no FarmaBot. Por favor, clique no botão para iniciar o cadastro.",
+            buttons=BOTAO_CADASTRO_FARMABOT)
+    elif user['ativo'] is False:
+        logger.info(f"User {user} is inactive")
+        await event.respond("Você não está ativo. Por favor, fale com o ADM do FarmaBot para ativar sua conta",
+                            parse_mode='html')
+    elif user['is_admin']:
+        await event.respond('Escolha uma categoria para iniciar o processo de coleta de dados',
+                            buttons=BOTOES_ADMIN_MECOFARMA)
+    else:
+        await event.respond('🤖 Bem-vindo ao Web Scraping do site https://www.mecofarma.com')
+        await event.respond('Escolha uma categoria para iniciar o processo de coleta de dados',
+                            buttons=BOTOES_MECOFARMA)
 
 
 @farmabot_client.on(events.NewMessage(pattern='/appysaude'))
 async def appysaude(event):
-    await event.respond('🤖 Bem-vindo ao Web Scraping do site https://www.appysaude.co.ao/home')
-    await event.respond("Clique no botão abaixo para iniciar a coleta de dados", buttons=BOTOES_APPYSAUDE)
+    sender = await event.get_sender()
+    logger.info("/appysaude requested")
+    logger.info(f"New event arrived from user {sender.id}: {event}")
+    user = await verify_user(sender)
+    logger.info(f"User from CSV file: {user}")
+    if user is None:
+        logger.info(f"User not found")
+        await event.respond(
+            "Você não possui cadastro no FarmaBot. Por favor, clique no botão para iniciar o cadastro.",
+            buttons=BOTAO_CADASTRO_FARMABOT)
+    elif user['ativo'] is False:
+        logger.info(f"User {user} is inactive")
+        await event.respond("Você não está ativo. Por favor, fale com o ADM do FarmaBot para ativar sua conta",
+                            parse_mode='html')
+    elif user['is_admin']:
+        await event.respond('Escolha uma categoria para iniciar o processo de coleta de dados',
+                            buttons=BOTOES_ADMIN_MECOFARMA)
+    else:
+        await event.respond('🤖 Bem-vindo ao Web Scraping do site https://www.appysaude.co.ao/home')
+        await event.respond("Clique no botão abaixo para obter o último arquivo mais recente", buttons=BOTOES_APPYSAUDE)
 
 
 def main():
-    print(f"[{datetime.now()}]: FarmaBot is ready ... Awaiting requests")
+    logger.info(f"FarmaBot is ready ... Awaiting requests")
     farmabot_client.run_until_disconnected()
 
 
 if __name__ == '__main__':
+    import multiprocessing
+    import platform
+
+    logger.info(f"Plataform: {platform.system()}")
+    logger.info(f"This machine has {multiprocessing.cpu_count()} CPU cores")
     main()

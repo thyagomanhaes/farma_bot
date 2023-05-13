@@ -1,9 +1,12 @@
+import os
 from datetime import datetime
 import concurrent.futures
 import requests
 from bs4 import BeautifulSoup
 import time
 import pandas as pd
+
+from utils import send_message_to_telegram, CANAL_NOTIFICACOES_BETFAIR
 
 
 def exportar_produtos_para_excel(df):
@@ -35,10 +38,17 @@ def scrap_appysaude(url, access_token):
             produto = {}
             print(
                 f"{x['Name']} | {x['ShortDescriptionEn']} | {x['HealthEstName']} | {x['Price']} | {x['Province']} | {x['ProductId']}")
+
             produto['id'] = x['ProductId']
-            produto['nome'] = x['Name']
-            produto['descricao'] = x.get('ShortDescriptionEn')
-            produto['nome_completo'] = x.get('Name') + " " + x.get('ShortDescriptionEn')
+            name = x['Name']
+            name = name.replace('\n', '')
+            name = name.replace('\r', '')
+            produto['nome'] = name
+            descricao = x.get('ShortDescriptionEn')
+            descricao = descricao.replace('\n', '')
+            descricao = descricao.replace('\r', '')
+            produto['descricao'] = descricao
+            produto['nome_completo'] = name + " " + descricao
             produto['fornecedor'] = x.get('HealthEstName')
             produto['preco'] = x['Price']
             produto['provincia'] = x['Province']
@@ -93,57 +103,58 @@ def scrap_pagina_produtos(page, access_token):
 
 def iniciar_scraping():
     access_token = None
-    while access_token is None:
-        access_token = input("Informe o token da sua sessão no site Appysaude:\n")
+    print("\nAguarde enquanto o token é validado...")
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/99.0.4844.51 Safari/537.36'
+    }
 
+    url1 = f"https://www.appysaude.co.ao/v1.0/products/productList?filter=&search=&skip=50&sort=3"
+    page = requests.get(url1, headers=headers)
+    if page.status_code == 401:
+        print("Token Inválido! Por favor, tente novamente. Obs: Seu token expira 1 hora após ter feito o login.")
+    elif page.status_code == 200:
+        print("Token validado com sucesso!!!")
+        print("Iniciando scraping dos produtos...")
+        count_total_products = page.json()['TotalCount']
+        # count_total_products = 500
 
-        print("\nAguarde enquanto o token é validado...")
-        headers = {
-            "Authorization": f"Bearer {access_token}",
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/99.0.4844.51 Safari/537.36'
-        }
+        print(f"Total de produtos disponíveis: {count_total_products}")
 
-        url1 = f"https://www.appysaude.co.ao/v1.0/products/productList?filter=&search=&skip=50&sort=3"
-        page = requests.get(url1, headers=headers)
-        if page.status_code == 401:
-            print("Token Inválido! Por favor, tente novamente. Obs: Seu token expira 1 hora após ter feito o login.")
-            access_token = None
-        elif page.status_code == 200:
-            print("Token validado com sucesso!!!")
+        skips = [n for n in range(count_total_products) if n % 50 == 0]
+        urls = [f"https://www.appysaude.co.ao/v1.0/products/productList?filter=&search=&skip={skip}&sort=3" for skip
+                in skips]
 
-            print("Iniciando scraping dos produtos...")
-            count_total_products = page.json()['TotalCount']
+        print(f"{len(urls)} links disponíveis para scraping")
 
-            print(f"Total de produtos disponíveis: {count_total_products}")
+        start = time.time()
 
-            skips = [n for n in range(count_total_products) if n % 50 == 0]
-            urls = [f"https://www.appysaude.co.ao/v1.0/products/productList?filter=&search=&skip={skip}&sort=3" for skip
-                    in skips]
+        _produtos = scrap_urls_produtos(urls, access_token)
 
-            print(f"{len(urls)} links disponíveis para scraping")
+        lista_produtos = []
 
-            start = time.time()
+        l_produtos = [lp._result for lp in _produtos]
 
-            _produtos = scrap_urls_produtos(urls, access_token)
+        for l_produto in l_produtos:
+            for produto in l_produto:
+                lista_produtos.append(produto)
 
-            lista_produtos = []
+        df_appysaude = pd.DataFrame.from_records(lista_produtos)
+        path_appysaude_files = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'files')
+        appysaude_filename = f'appysaude-{datetime.now().date()}'
+        # df_appysaude.to_csv(f'{path_appysaude_files}/{appysaude_filename}.csv', encoding='utf-8-sig')
+        df_appysaude.to_excel(f'{path_appysaude_files}/{appysaude_filename}.xlsx')
 
-            l_produtos = [lp._result for lp in _produtos]
+        end = time.time()
 
-            for l_produto in l_produtos:
-                for produto in l_produto:
-                    lista_produtos.append(produto)
-
-            print(lista_produtos)
-
-            df = pd.DataFrame.from_dict(lista_produtos)
-            df.to_csv('scrap_appsaude.csv', encoding='utf-8-sig')
-
-            end = time.time()
-
-            total_time = round(end - start, 2)
-            print(f"\nTempo para coletar dados: {total_time} segundos")
+        total_time = round(end - start, 2)
+        send_message_to_telegram(f"\nTempo para coletar {len(lista_produtos)} dados: {total_time} segundos",
+                                 CANAL_NOTIFICACOES_BETFAIR)
 
 
 if __name__ == '__main__':
-    iniciar_scraping()
+    try:
+        iniciar_scraping()
+        send_message_to_telegram("Script Scraper AppySaude executado com sucesso", CANAL_NOTIFICACOES_BETFAIR)
+    except Exception as e:
+        send_message_to_telegram(f"Erro ao executar script Scraper AppySaude: {e}", CANAL_NOTIFICACOES_BETFAIR)

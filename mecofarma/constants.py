@@ -22,6 +22,20 @@ BOTOES_MECOFARMA = [
     [Button.inline('🔎 Busca por CNP', 'botaoBuscaPorCNP')],
 ]
 
+BOTOES_ADMIN_MECOFARMA = [
+    [Button.inline('💊 Farmácia', 'botaoFarmacia')],
+    [Button.inline('🤱 Mamã e Bebé', 'botaoMamaebebe')],
+    [Button.inline('💄 Saúde e Beleza', 'botaoSaudeeBeleza')],
+    [Button.inline('⚧ Sexualidade', 'botaoSexualidade')],
+    [Button.inline('🦴 Ortopedia', 'botaoOrtopedia')],
+    [Button.inline('🏃 Vida Saudável', 'botaoVidaSaudavel')],
+    [Button.inline('Todas as Categorias', 'botaoTodasCategorias')],
+    [Button.inline('🔎 Busca por CNP', 'botaoBuscaPorCNP')],
+    [Button.inline('Gerenciar Usuários', 'botaoGerenciarUsuarios')],
+    [Button.inline('Todas as Categorias', 'botaoTodasCategorias')],
+    [Button.inline('🔎 Busca por CNP', 'botaoBuscaPorCNP')],
+]
+
 BOTOES_MENU_FARMA_BOT = {
     b'botaoFarmacia': {
         "nome": "Farmácia",
