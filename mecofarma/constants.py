@@ -32,6 +32,8 @@ BOTOES_ADMIN_MECOFARMA = [
     [Button.inline('Todas as Categorias', 'botaoTodasCategorias')],
     [Button.inline('🔎 Busca por CNP', 'botaoBuscaPorCNP')],
     [Button.inline('Gerenciar Usuários', 'botaoGerenciarUsuarios')],
+    [Button.inline('Todas as Categorias', 'botaoTodasCategorias')],
+    [Button.inline('🔎 Busca por CNP', 'botaoBuscaPorCNP')],
 ]
 
 BOTOES_MENU_FARMA_BOT = {
