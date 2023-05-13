@@ -34,10 +34,10 @@ FARMABOT_BOT_TOKEN = config('GREENVESTBOT_DEV_BOT_TOKEN')
 
 # Creating a bot client from string session
 farmabot_client = TelegramClient(
-    StringSession(GREENVESTBOT_DEV_STRING_SESSION_BOT),
+    StringSession(FARMABOT_STRING_SESSION_BOT),
     int(FARMABOT_TELEGRAM_API_ID),
     FARMABOT_TELEGRAM_API_HASH
-).start(bot_token=GREENVESTBOT_DEV_BOT_TOKEN)
+).start(bot_token=FARMABOT_BOT_TOKEN)
 
 APP_ROOT = os.path.dirname(os.path.abspath(__file__))
 APP_STATIC = os.path.join(APP_ROOT, 'static')
