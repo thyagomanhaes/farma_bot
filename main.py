@@ -27,10 +27,10 @@ stream_handler.setFormatter(formatter)
 logger.addHandler(stream_handler)
 logger.setLevel(logging.DEBUG)  # better to have too much log than not enough
 
-GREENVESTBOT_DEV_STRING_SESSION_BOT = config('GREENVESTBOT_DEV_STRING_SESSION_BOT')
+FARMABOT_STRING_SESSION_BOT = config('GREENVESTBOT_DEV_STRING_SESSION_BOT')
 FARMABOT_TELEGRAM_API_ID = config('FARMABOT_TELEGRAM_API_ID')
 FARMABOT_TELEGRAM_API_HASH = config('FARMABOT_TELEGRAM_API_HASH')
-GREENVESTBOT_DEV_BOT_TOKEN = config('GREENVESTBOT_DEV_BOT_TOKEN')
+FARMABOT_BOT_TOKEN = config('GREENVESTBOT_DEV_BOT_TOKEN')
 
 # Creating a bot client from string session
 farmabot_client = TelegramClient(
