@@ -415,7 +415,7 @@ async def transform_products_list(products: List) -> List:
                 'cnp': cnp,
                 'ref': ref_number,
                 'link_produto': url,
-                'date_scraping': datetime.datetime.now()
+                'date_scraping': datetime.now()
             }
             lista_final_produtos.append(produto_final)
 
