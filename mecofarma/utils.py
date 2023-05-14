@@ -1,12 +1,12 @@
+import os
 import re
 import json
+from datetime import datetime
 
 import asyncio
-from bs4 import BeautifulSoup
-import aiohttp
 import phonenumbers
 import requests
-import mecofarma_paralelo as mec_paralelo
+
 
 CANAL_NOTIFICACOES_BETFAIR = "1001412054755"
 
@@ -22,32 +22,6 @@ async def do_something():
     await contar()
     await asyncio.sleep(15)
     print("terminou")
-
-
-async def get_page(session, url, cat, subcat):
-    async with session.get(url, ssl=False) as r:
-        texto = await r.text()
-        soup = BeautifulSoup(texto, 'html.parser')
-
-        pds = await mec_paralelo.scrap_pagina_produtos(soup, cat, subcat, only_ref=False)
-        return pds
-
-
-async def get_all(session, urls):
-    tasks = []
-    for url in urls:
-        task = asyncio.create_task(get_page(session, url['link_subcategoria'], url['categoria'],
-                                            url['subcategoria']))
-        tasks.append(task)
-
-    results = await asyncio.gather(*tasks)
-    return results
-
-
-async def main3(urls):
-    async with aiohttp.ClientSession() as session:
-        data = await get_all(session, urls)
-        return data
 
 
 async def write_list_of_ngram_dicts(list_of_dicts, filename):
@@ -81,3 +55,13 @@ def send_message_to_telegram(message, channel):
         return message_sent
     except Exception as error:
         print("Error sending menssage to Telegram: ", error)
+
+
+async def exportar_produtos_para_excel(df, nome_categoria):
+    filename_excel = f"mecofarma-{nome_categoria}-{datetime.now().date()}.xlsx"
+    df_ordenado = df.sort_values(['categoria', 'subcategoria', 'nome'])
+
+    path_mecofarma_files = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'files')
+    df_ordenado.to_excel(f'{path_mecofarma_files}/{filename_excel}', index=False)
+
+    return filename_excel

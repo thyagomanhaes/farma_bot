@@ -34,6 +34,13 @@ BOTOES_ADMIN_MECOFARMA = [
     [Button.inline('Gerenciar Usuários', 'botaoGerenciarUsuarios')],
 ]
 
+BOTOES_ADMIN_FARMABOT = [
+    [Button.inline('Listar Usuários', 'botaoListarUsuarios')],
+    [Button.inline('Ativar Usuários', 'botaoAtivarUsuarios')],
+    [Button.inline('Desativar Usuários', 'botaoDesativarUsuarios')],
+]
+
+
 BOTOES_MENU_FARMA_BOT = {
     b'botaoFarmacia': {
         "nome": "Farmácia",

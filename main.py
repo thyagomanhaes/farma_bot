@@ -15,8 +15,7 @@ from telethon.tl.types import PeerUser
 import mecofarma.mecofarmax as mec
 from appysaude.constants import BOTOES_APPYSAUDE
 from constants import BOTAO_CADASTRO_FARMABOT, URL_BUSCA_POR_CNP
-from mecofarma import mecofarma_paralelo
-from mecofarma.constants import BOTOES_MECOFARMA, BOTOES_MENU_FARMA_BOT, BOTOES_ADMIN_MECOFARMA
+from mecofarma.constants import BOTOES_MECOFARMA, BOTOES_MENU_FARMA_BOT, BOTOES_ADMIN_MECOFARMA, BOTOES_ADMIN_FARMABOT
 from utils import is_valid_name, is_valid_phone_number
 
 
@@ -142,14 +141,28 @@ async def callback(event):
 
     elif user['ativo'] is True:
         logger.info(f"User {user} is active and can use the bot")
-        if event.data == b'botaoGerenciarUsuarios':
-            await event.respond('Qual usuário você deseja ativar?')
+        if event.data in [b'botaoListarUsuarios']:
             df_users = await read_csv_users()
             msg = "Nº | Nome | Ativo\n"
 
             for i, user in df_users.iterrows():
                 username = user.get('nome')
-                ativo = user.get('ativo')
+                ativo = 'Sim ✅' if user.get('ativo') else 'Não ❌'
+                nome = f"{i} | {username} | {ativo}\n"
+                msg += nome
+
+            await event.respond(msg)
+
+        elif event.data in [b'botaoAtivarUsuarios', b'botaoDesativarUsuarios']:
+            acao = '<b>Ativar</b>' if event.data == b'botaoAtivarUsuarios' else '<b>Desativar</b>'
+
+            await event.respond(f'Qual usuário você deseja {acao}?', parse_mode='html')
+            df_users = await read_csv_users()
+            msg = "Nº | Nome | Ativo\n"
+
+            for i, user in df_users.iterrows():
+                username = user.get('nome')
+                ativo = 'Sim ✅' if user.get('ativo') else 'Não ❌'
                 nome = f"{i} | {username} | {ativo}\n"
                 msg += nome
 
@@ -168,9 +181,14 @@ async def callback(event):
                         name = await conv.get_response()
                         name = name.text
 
-                    df_users.at[int(name), 'ativo'] = True
+                    if event.data == b'botaoAtivarUsuarios':
+                        df_users.at[int(name), 'ativo'] = True
+                    elif event.data == b'botaoDesativarUsuarios':
+                        df_users.at[int(name), 'ativo'] = False
+
                     df_users.to_csv(os.path.join(APP_STATIC, 'usuarios.csv'), index=False)
-                    await conv.send_message(f"Usuário {name} ativado com sucesso!")
+                    acao = 'ativado' if event.data == b'botaoAtivarUsuarios' else 'desativado'
+                    await conv.send_message(f"Usuário {name} {acao} com sucesso!")
                 finally:
                     print("ok")
         if event.data == b'botaoIniciarAppySaude':
@@ -231,7 +249,7 @@ async def callback(event):
 
                         start = time.time()
 
-                        _produtos = mecofarma_paralelo.scrap_urls_cnps(urls_cnps)
+                        _produtos = mec.scrap_urls_cnps(urls_cnps)
 
                         end = time.time()
 
@@ -248,7 +266,7 @@ async def callback(event):
 
                         logger.info(f"Qtd produtos na Lista final: {len(lista_produtos)}")
 
-                        l_final = mecofarma_paralelo.transform_products_list(lista_produtos)
+                        l_final = mec.transform_products_list(lista_produtos)
 
                         df = pd.DataFrame.from_records(l_final)
 
@@ -308,12 +326,9 @@ async def mecofarma(event):
         logger.info(f"User {user} is inactive")
         await event.respond("Você não está ativo. Por favor, fale com o ADM do FarmaBot para ativar sua conta",
                             parse_mode='html')
-    elif user['is_admin']:
-        await event.respond('Escolha uma categoria para iniciar o processo de coleta de dados',
-                            buttons=BOTOES_ADMIN_MECOFARMA)
     else:
         await event.respond('🤖 Bem-vindo ao Web Scraping do site https://www.mecofarma.com')
-        await event.respond('Escolha uma categoria para iniciar o processo de coleta de dados',
+        await event.respond('Escolha uma categoria para obter o arquivo mais recente dos dados coletados',
                             buttons=BOTOES_MECOFARMA)
 
 
@@ -333,12 +348,23 @@ async def appysaude(event):
         logger.info(f"User {user} is inactive")
         await event.respond("Você não está ativo. Por favor, fale com o ADM do FarmaBot para ativar sua conta",
                             parse_mode='html')
-    elif user['is_admin']:
-        await event.respond('Escolha uma categoria para iniciar o processo de coleta de dados',
-                            buttons=BOTOES_ADMIN_MECOFARMA)
     else:
         await event.respond('🤖 Bem-vindo ao Web Scraping do site https://www.appysaude.co.ao/home')
         await event.respond("Clique no botão abaixo para obter o último arquivo mais recente", buttons=BOTOES_APPYSAUDE)
+
+
+@farmabot_client.on(events.NewMessage(pattern='/admin'))
+async def admin(event):
+    sender = await event.get_sender()
+    logger.info("/admin requested")
+    logger.info(f"New event arrived from user {sender.id}: {event}")
+    user = await verify_user(sender)
+    logger.info(f"User from CSV file: {user}")
+    if user is not None and user['is_admin']:
+        await event.respond('Olá adm! O que você deseja fazer?',
+                            buttons=BOTOES_ADMIN_FARMABOT)
+    else:
+        await event.respond("Esta funcionalidade só está disponível para os ADMs do Farmabot.")
 
 
 def main():

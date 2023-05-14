@@ -2,11 +2,9 @@ import re
 import json
 
 import asyncio
-from bs4 import BeautifulSoup
 import aiohttp
 import phonenumbers
 import requests
-import mecofarma.mecofarma_paralelo as mec_paralelo
 
 CANAL_NOTIFICACOES_BETFAIR = "1001412054755"
 
@@ -22,15 +20,6 @@ async def do_something():
     await contar()
     await asyncio.sleep(15)
     print("terminou")
-
-
-async def get_page(session, url, cat, subcat):
-    async with session.get(url, ssl=False) as r:
-        texto = await r.text()
-        soup = BeautifulSoup(texto, 'html.parser')
-
-        pds = await mec_paralelo.scrap_pagina_produtos(soup, cat, subcat, only_ref=False)
-        return pds
 
 
 async def get_all(session, urls):

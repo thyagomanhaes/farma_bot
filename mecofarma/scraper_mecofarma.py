@@ -10,9 +10,8 @@ import aiohttp
 import pandas as pd
 from bs4 import BeautifulSoup
 
-import mecofarmax as mec
 from constants import HTML_PARSER, NOME_ARQUIVO_TEMPORARIO
-from utils import send_message_to_telegram, CANAL_NOTIFICACOES_BETFAIR
+from utils import send_message_to_telegram, CANAL_NOTIFICACOES_BETFAIR, exportar_produtos_para_excel
 
 logger = logging.getLogger(__name__)
 stream_handler = logging.StreamHandler(sys.stdout)  # Where logged messages will output, in this case direct to console
@@ -96,7 +95,7 @@ async def scrape_subcategories():
 
     if len(products) > 0:
         df_products = pd.DataFrame.from_records(products)
-        filename = await mec.exportar_produtos_para_excel(df_products, NOME_ARQUIVO_TEMPORARIO)
+        filename = await exportar_produtos_para_excel(df_products, NOME_ARQUIVO_TEMPORARIO)
         logger.info(f"Arquivo {filename} gerado em {time.time() - _start:.2f} seg com {len(products)} produtos.")
 
 
@@ -130,7 +129,7 @@ async def scrape_products_details():
 
         df_products = pd.DataFrame.from_records(final_products)
 
-        nome_arquivo = await mec.exportar_produtos_para_excel(df_products, 'todas-as-categorias')
+        nome_arquivo = await exportar_produtos_para_excel(df_products, 'todas-as-categorias')
         print(f"Arquivo {nome_arquivo} gerado com {len(final_products)} produtos em {time.time() - _start:.2f} seg")
 
 

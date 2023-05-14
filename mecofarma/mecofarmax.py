@@ -1,4 +1,5 @@
 import asyncio
+import concurrent
 import os
 import time
 from typing import List
@@ -91,16 +92,6 @@ async def exportar_produtos_para_excel_cnp(df_cnp):
     filename_excel = f"mecofarma-resultado-busca-por-cnp-{datetime.now().date()}.xlsx"
     df_ordenado = df_cnp.sort_values(['nome'])
     df_ordenado.to_excel(filename_excel, index=False)
-
-    return filename_excel
-
-
-async def exportar_produtos_para_excel(df, nome_categoria):
-    filename_excel = f"mecofarma-{nome_categoria}-{datetime.now().date()}.xlsx"
-    df_ordenado = df.sort_values(['categoria', 'subcategoria', 'nome'])
-
-    path_mecofarma_files = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'files')
-    df_ordenado.to_excel(f'{path_mecofarma_files}/{filename_excel}', index=False)
 
     return filename_excel
 
@@ -391,6 +382,76 @@ def salvar_csv(df, nome_arquivo):
     df.to_csv(f'{app_root}/{nome_arquivo}.csv', encoding='utf-8-sig')
     print(f'Arquivo {app_root}/{nome_arquivo}.csv salvo com sucesso!')
 
+
+def request_por_cnp(url_cnp: str):
+
+    response_page = requests.get(url_cnp)
+    lista_produtos = response_page.json()
+    if len(lista_produtos) > 0:
+        print(f"Existe: {url_cnp}")
+        for produto in lista_produtos:
+            produto['cnp'] = url_cnp.split('?q=')[1]
+        return lista_produtos
+
+    print(f"Não existe: {url_cnp}")
+    return []
+
+
+def scrap_urls_cnps(urls_cnps):
+    total = []
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        tasks = [executor.submit(request_por_cnp, url_cnp) for url_cnp in urls_cnps]
+        results = []
+        for result in concurrent.futures.as_completed(tasks):
+            results.append(result)
+
+        total += results
+
+    return total
+
+
+async def transform_products_list(products: List) -> List:
+    lista_final_produtos = []
+
+    '''
+        a url pode vir assim: 'https://www.mecofarma.com/pt/catalog/product/view/id/83727/'
+        tem que consultar a página para buscar a REF
+    '''
+    if len(products) > 0:
+        for produto in products:
+            search_type = produto.get('type')
+            title = produto.get('title')
+            image = produto.get('image')
+            url = produto.get('url')
+            price_div = produto.get('price')
+            soup_div_price = BeautifulSoup(price_div, 'html.parser')
+            spans = soup_div_price.find_all("span")
+            cnp = produto.get('cnp')
+
+            if 'catalog/product/view' in url:
+                ref_number = await scrap_pagina_produtos(url, None, None, True)
+            else:
+                ref_number = url.split('pt/')[1]
+
+            price = None
+            for span in spans:
+                if span.attrs.get('data-price-amount') is not None:
+                    price = span.attrs.get('data-price-amount')
+                    break
+
+            forma_terapeutica = produto.get('forma_terapeutica')
+            print(title, price, forma_terapeutica)
+            produto_final = {
+                'nome': title,
+                'preco': price,
+                'cnp': cnp,
+                'ref': ref_number,
+                'link_produto': url,
+                'date_scraping': datetime.datetime.now()
+            }
+            lista_final_produtos.append(produto_final)
+
+    return lista_final_produtos
 
 if __name__ == "__main__":
     start = time.time()
