@@ -5,7 +5,6 @@ import time
 from typing import List
 
 import aiohttp
-import httpx
 import requests
 from bs4 import BeautifulSoup
 from datetime import datetime
@@ -43,37 +42,6 @@ opcoes = {
 }
 
 LINK_EXEMPLO_PRODUTO = "https://www.mecofarma.com/pt/023751"
-
-CATEGORIAS_MECOFARMA = [
-    {
-        "nome": "Farmácia",
-        "link": "https://www.mecofarma.com/pt/farmacia"
-    },
-    {
-        "nome": "Mamã e Bebé",
-        "link": "https://www.mecofarma.com/pt/mam-e-bebe"
-    },
-    {
-        "nome": "Saúde e Beleza",
-        "link": "https://www.mecofarma.com/pt/saude-e-beleza"
-    },
-    {
-        "nome": "Sexualidade",
-        "link": "https://www.mecofarma.com/pt/sexualidade"
-    },
-    {
-        "nome": "Ortopedia",
-        "link": "https://www.mecofarma.com/pt/ortopedia"
-    },
-    {
-        "nome": "Vida Saudável",
-        "link": "https://www.mecofarma.com/pt/vida-saudavel"
-    },
-    {
-        "nome": "Acessórios e Dispositivos Médicos",
-        "link": "https://www.mecofarma.com/pt/acessorios-e-dispositivos-medicos"
-    }
-]
 
 
 class bcolors:
@@ -397,7 +365,7 @@ def request_por_cnp(url_cnp: str):
     return []
 
 
-def scrap_urls_cnps(urls_cnps):
+async def scrap_urls_cnps(urls_cnps):
     total = []
     with concurrent.futures.ThreadPoolExecutor() as executor:
         tasks = [executor.submit(request_por_cnp, url_cnp) for url_cnp in urls_cnps]

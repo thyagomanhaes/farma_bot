@@ -249,7 +249,7 @@ async def callback(event):
 
                         start = time.time()
 
-                        _produtos = mec.scrap_urls_cnps(urls_cnps)
+                        _produtos = await mec.scrap_urls_cnps(urls_cnps)
 
                         end = time.time()
 
@@ -266,7 +266,7 @@ async def callback(event):
 
                         logger.info(f"Qtd produtos na Lista final: {len(lista_produtos)}")
 
-                        l_final = mec.transform_products_list(lista_produtos)
+                        l_final = await mec.transform_products_list(lista_produtos)
 
                         df = pd.DataFrame.from_records(l_final)
 

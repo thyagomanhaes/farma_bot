@@ -83,3 +83,34 @@ BOTOES_MENU_FARMA_BOT = {
         "link": ""
     }
 }
+
+CATEGORIAS_MECOFARMA = [
+    {
+        "nome": "Farmácia",
+        "link": "https://www.mecofarma.com/pt/farmacia"
+    },
+    {
+        "nome": "Mamã e Bebé",
+        "link": "https://www.mecofarma.com/pt/mam-e-bebe"
+    },
+    {
+        "nome": "Saúde e Beleza",
+        "link": "https://www.mecofarma.com/pt/saude-e-beleza"
+    },
+    {
+        "nome": "Sexualidade",
+        "link": "https://www.mecofarma.com/pt/sexualidade"
+    },
+    {
+        "nome": "Ortopedia",
+        "link": "https://www.mecofarma.com/pt/ortopedia"
+    },
+    {
+        "nome": "Vida Saudável",
+        "link": "https://www.mecofarma.com/pt/vida-saudavel"
+    },
+    {
+        "nome": "Acessórios e Dispositivos Médicos",
+        "link": "https://www.mecofarma.com/pt/acessorios-e-dispositivos-medicos"
+    }
+]
