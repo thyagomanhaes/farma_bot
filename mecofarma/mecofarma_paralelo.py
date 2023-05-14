@@ -8,7 +8,7 @@ import requests
 
 from typing import Dict, List
 from bs4 import BeautifulSoup
-from mecofarma.mecofarmax import scrap_produtos, scrap_pagina_produtos
+from mecofarmax import scrap_produtos, scrap_pagina_produtos
 
 import aiohttp
 import threading
