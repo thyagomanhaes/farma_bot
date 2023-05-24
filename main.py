@@ -16,6 +16,7 @@ import mecofarma.mecofarmax as mec
 from appysaude.constants import BOTOES_APPYSAUDE
 from constants import BOTAO_CADASTRO_FARMABOT, URL_BUSCA_POR_CNP
 from mecofarma.constants import BOTOES_MECOFARMA, BOTOES_MENU_FARMA_BOT, BOTOES_ADMIN_MECOFARMA, BOTOES_ADMIN_FARMABOT
+from mecofarma.utils import CANAL_NOTIFICACOES_BETFAIR, send_message_to_telegram
 from utils import is_valid_name, is_valid_phone_number
 
 
@@ -158,12 +159,13 @@ async def callback(event):
 
             await event.respond(f'Qual usuário você deseja {acao}?', parse_mode='html')
             df_users = await read_csv_users()
-            msg = "Nº | Nome | Ativo\n"
+            msg = "Nº | Nome | Ativo | Admin\n"
 
             for i, user in df_users.iterrows():
                 username = user.get('nome')
                 ativo = 'Sim ✅' if user.get('ativo') else 'Não ❌'
-                nome = f"{i} | {username} | {ativo}\n"
+                admin2 = 'Sim ✅' if user.get('is_admin') else 'Não ❌'
+                nome = f"{i} | {username} | {ativo} | {admin2}\n"
                 msg += nome
 
             await event.respond(msg)
@@ -202,6 +204,7 @@ async def callback(event):
                 path_appysaude_files = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'appysaude/files')
                 arquivos = [file for file in os.listdir(path_appysaude_files) if
                             file.startswith('appysaude')]
+                arquivos = sorted(arquivos)
                 nome_ultimo_arquivo = arquivos[-1]
                 nome_arquivo = f"{path_appysaude_files}/{nome_ultimo_arquivo}"
                 await farmabot_client.send_file(user, nome_arquivo)
@@ -315,6 +318,7 @@ async def mecofarma(event):
     sender = await event.get_sender()
     logger.info("/mecofarma requested")
     logger.info(f"New event arrived from user {sender.id}: {event}")
+    send_message_to_telegram(f"New event arrived from user {sender.id}: {event}", CANAL_NOTIFICACOES_BETFAIR)
     user = await verify_user(sender)
     logger.info(f"User from CSV file: {user}")
     if user is None:
@@ -337,6 +341,7 @@ async def appysaude(event):
     sender = await event.get_sender()
     logger.info("/appysaude requested")
     logger.info(f"New event arrived from user {sender.id}: {event}")
+    send_message_to_telegram(f"[AppySaude] New event arrived from user {sender.id}: {event}", CANAL_NOTIFICACOES_BETFAIR)
     user = await verify_user(sender)
     logger.info(f"User from CSV file: {user}")
     if user is None:

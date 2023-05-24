@@ -12,12 +12,6 @@ class CategoriasMecofarma(Enum):
 
 
 BOTOES_MECOFARMA = [
-    [Button.inline('💊 Farmácia', 'botaoFarmacia')],
-    [Button.inline('🤱 Mamã e Bebé', 'botaoMamaebebe')],
-    [Button.inline('💄 Saúde e Beleza', 'botaoSaudeeBeleza')],
-    [Button.inline('⚧ Sexualidade', 'botaoSexualidade')],
-    [Button.inline('🦴 Ortopedia', 'botaoOrtopedia')],
-    [Button.inline('🏃 Vida Saudável', 'botaoVidaSaudavel')],
     [Button.inline('Todas as Categorias', 'botaoTodasCategorias')],
     [Button.inline('🔎 Busca por CNP', 'botaoBuscaPorCNP')],
 ]
