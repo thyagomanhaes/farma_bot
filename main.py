@@ -64,7 +64,9 @@ async def read_csv_users():
 @farmabot_client.on(events.CallbackQuery)
 async def callback(event):
     sender = await event.get_sender()
-    logger.info(f"New event arrived from user {sender.id}: {event}")
+    msg = f"New event arrived from user {sender.id}: {event}"
+    logger.info(msg)
+    send_message_to_telegram(msg, CANAL_NOTIFICACOES_BETFAIR)
 
     user = await verify_user(sender)
     logger.info(f"User from CSV file: {user}")
@@ -144,12 +146,13 @@ async def callback(event):
         logger.info(f"User {user} is active and can use the bot")
         if event.data in [b'botaoListarUsuarios']:
             df_users = await read_csv_users()
-            msg = "Nº | Nome | Ativo\n"
+            msg = "Nº | Nome | Ativo | Admin\n"
 
             for i, user in df_users.iterrows():
                 username = user.get('nome')
                 ativo = 'Sim ✅' if user.get('ativo') else 'Não ❌'
-                nome = f"{i} | {username} | {ativo}\n"
+                admin2 = 'Sim ✅' if user.get('is_admin') else 'Não ❌'
+                nome = f"{i} | {username} | {ativo} | {admin2}\n"
                 msg += nome
 
             await event.respond(msg)
