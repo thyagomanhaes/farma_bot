@@ -392,32 +392,34 @@ async def transform_products_list(products: List) -> List:
             image = produto.get('image')
             url = produto.get('url')
             price_div = produto.get('price')
-            soup_div_price = BeautifulSoup(price_div, 'html.parser')
-            spans = soup_div_price.find_all("span")
-            cnp = produto.get('cnp')
 
-            if 'catalog/product/view' in url:
-                ref_number = await scrap_pagina_produtos(url, None, None, True)
-            else:
-                ref_number = url.split('pt/')[1]
+            if price_div is not None:
+                soup_div_price = BeautifulSoup(price_div, 'html.parser')
+                spans = soup_div_price.find_all("span")
+                cnp = produto.get('cnp')
 
-            price = None
-            for span in spans:
-                if span.attrs.get('data-price-amount') is not None:
-                    price = span.attrs.get('data-price-amount')
-                    break
+                if 'catalog/product/view' in url:
+                    ref_number = await scrap_pagina_produtos(url, None, None, True)
+                else:
+                    ref_number = url.split('pt/')[1]
 
-            forma_terapeutica = produto.get('forma_terapeutica')
-            print(title, price, forma_terapeutica)
-            produto_final = {
-                'nome': title,
-                'preco': price,
-                'cnp': cnp,
-                'ref': ref_number,
-                'link_produto': url,
-                'date_scraping': datetime.now()
-            }
-            lista_final_produtos.append(produto_final)
+                price = None
+                for span in spans:
+                    if span.attrs.get('data-price-amount') is not None:
+                        price = span.attrs.get('data-price-amount')
+                        break
+
+                forma_terapeutica = produto.get('forma_terapeutica')
+                print(title, price, forma_terapeutica)
+                produto_final = {
+                    'nome': title,
+                    'preco': price,
+                    'cnp': cnp,
+                    'ref': ref_number,
+                    'link_produto': url,
+                    'date_scraping': datetime.now()
+                }
+                lista_final_produtos.append(produto_final)
 
     return lista_final_produtos
 

@@ -134,44 +134,49 @@ async def scrape_products_details():
 
 
 async def fetch(product, session):
-    async with session.get(product['link_produto'], ssl=False) as response:
-        text = await response.text()
-        logger.info(f"Searching product details in ({product['link_produto']})")
-        soup = BeautifulSoup(text, HTML_PARSER)
+    try:
+        async with session.get(product['link_produto'], ssl=False) as response:
+            text = await response.text()
+            logger.info(f"Searching product details in ({product['link_produto']})")
+            soup = BeautifulSoup(text, HTML_PARSER)
 
-        if soup is not None:
+            if soup is not None:
+                product_name = soup.find('h1', {"class": "page-title"})
+                if product_name is not None:
+                    product_name = product_name.text.strip()
+                    cnp = soup.find('span', {"class": "cnp"})
+                    if cnp is not None:
+                        cnp = cnp.text.strip()
+                        cnp_number = cnp.split('CNP: ')[1]
+                    else:
+                        cnp_number = None
 
-            product_name = soup.find('h1', {"class": "page-title"}).text.strip()
-            cnp = soup.find('span', {"class": "cnp"})
-            if cnp is not None:
-                cnp = cnp.text.strip()
-                cnp_number = cnp.split('CNP: ')[1]
-            else:
-                cnp_number = None
+                    ref = soup.find('span', {"class": "sku"})
+                    ref = ref.text.strip() if ref is not None else None
 
-            ref = soup.find('span', {"class": "sku"})
-            ref = ref.text.strip() if ref is not None else None
+                    if cnp is not None:
+                        cnp_number = cnp.split('CNP: ')[1]
+                    if ref is not None:
+                        ref_number = ref.split('REF: ')[1]
 
-            if cnp is not None:
-                cnp_number = cnp.split('CNP: ')[1]
-            if ref is not None:
-                ref_number = ref.split('REF: ')[1]
+                    logger.info(f"Details of {product_name} found: {cnp_number} | {ref_number}")
+                    product['cnp'] = cnp_number
+                    product['ref'] = ref_number
 
-            logger.info(f"Details of {product_name} found: {cnp_number} | {ref_number}")
-            product['cnp'] = cnp_number
-            product['ref'] = ref_number
-
-            return product
+                    return product
+    except Exception as ex:
+        print(f"Erro durante busca por nome do produto em: {product['link_produto']}")
+        print(ex.__traceback__)
 
 
 if __name__ == '__main__':
-    try:
+    # try:
         loop = asyncio.get_event_loop()
-        loop.run_until_complete(scrape_subcategories())
-        logger.info("Scraping of subcategories finished")
-        time.sleep(1)
+        # loop.run_until_complete(scrape_subcategories())
+        # logger.info("Scraping of subcategories finished")
+        # time.sleep(1)
         logger.info("Starting scrape of products to get more info of each one")
         loop.run_until_complete(scrape_products_details())
         send_message_to_telegram("scraper_mecofarma executado com sucesso!", CANAL_NOTIFICACOES_BETFAIR)
-    except Exception as e:
-        send_message_to_telegram(f"Erro ao executar script Scraper AppySaude: {e}", CANAL_NOTIFICACOES_BETFAIR)
+    # except Exception as e:
+    #     send_message_to_telegram(f"Erro ao executar script Scraper Mecofarma: {e}", CANAL_NOTIFICACOES_BETFAIR)
