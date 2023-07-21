@@ -172,9 +172,9 @@ async def fetch(product, session):
 if __name__ == '__main__':
     # try:
         loop = asyncio.get_event_loop()
-        # loop.run_until_complete(scrape_subcategories())
+        loop.run_until_complete(scrape_subcategories())
         # logger.info("Scraping of subcategories finished")
-        # time.sleep(1)
+        time.sleep(1)
         logger.info("Starting scrape of products to get more info of each one")
         loop.run_until_complete(scrape_products_details())
         send_message_to_telegram("scraper_mecofarma executado com sucesso!", CANAL_NOTIFICACOES_BETFAIR)
