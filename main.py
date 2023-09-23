@@ -3,6 +3,7 @@ import asyncio
 import logging
 import os
 import sys
+import glob
 import time
 from datetime import datetime
 
@@ -302,11 +303,13 @@ async def callback(event):
                     await event.respond("Aqui está seu arquivo 👇", parse_mode='html')
 
                     path_mecofarma_files = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'mecofarma/files')
-                    arquivos = [file for file in os.listdir(path_mecofarma_files) if file.startswith('mecofarma-todas-as-categorias-2023')]
-                    nome_ultimo_arquivo = arquivos[-1]
-                    nome_arquivo = f"{path_mecofarma_files}/{nome_ultimo_arquivo}"
-                    await farmabot_client.send_file(user, nome_arquivo)
-                    logger.info(f"File {nome_arquivo} was sent with success to {id_user_telegram}")
+                    lista_arquivos = glob.glob(f"{path_mecofarma_files}/*.xlsx")
+                    ultimo_arquivo = max(lista_arquivos, key=os.path.getctime)
+                    # arquivos = [file for file in os.listdir(path_mecofarma_files) if file.startswith('mecofarma-todas-as-categorias-2023')]
+                    # nome_ultimo_arquivo = arquivos[-1]
+                    # nome_arquivo = f"{path_mecofarma_files}/{nome_ultimo_arquivo}"
+                    await farmabot_client.send_file(user, ultimo_arquivo)
+                    logger.info(f"File {ultimo_arquivo} was sent with success to {id_user_telegram}")
                 except Exception as e:
                     logger.error(e)
                     await event.respond(f"Ocorreu um erro ao buscar arquivo. Por favor, tente novamente em instantes",
