@@ -245,9 +245,11 @@ async def callback(event):
                         arquivo_enviado = sent_filename
 
                     df_enviado = pd.read_excel(arquivo_enviado)
+                    print(df_enviado.columns)
 
-                    if 'codigo' in df_enviado.columns:
-                        lista_cnps = list(df_enviado['codigo'])
+                    if 2 == 2:
+                        lista_cnps = list(df_enviado.iloc[:, 0])
+                        # df3.iloc[:, 0]
                         await conv.send_message(
                             f'🤖 Arquivo recebido com sucesso! Aguarde enquanto faço a coleta de dados de '
                             f'{len(lista_cnps)} CNPs informados no arquivo')
@@ -268,8 +270,9 @@ async def callback(event):
                         l_produtos = [lp._result for lp in _produtos]
 
                         for l_produto in l_produtos:
-                            for produto in l_produto:
-                                lista_produtos.append(produto)
+                            if l_produto is not None:
+                                for produto in l_produto:
+                                    lista_produtos.append(produto)
 
                         logger.info(f"Qtd produtos na Lista final: {len(lista_produtos)}")
 
