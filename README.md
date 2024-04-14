@@ -14,10 +14,10 @@ To use the AppySaude bot, just run the "scraper_appysaude.py" in appysaude folde
 
 To use the telegram bot, you need to create a ".env" file in the root directory.
 
-FARMABOT_STRING_SESSION_BOT=
-FARMABOT_TELEGRAM_API_ID=
-FARMABOT_TELEGRAM_API_HASH=
-FARMABOT_BOT_TOKEN=
+- FARMABOT_STRING_SESSION_BOT=
+- FARMABOT_TELEGRAM_API_ID=
+- FARMABOT_TELEGRAM_API_HASH=
+- FARMABOT_BOT_TOKEN=
 
 In mecofarma , you can choose to scrap between the entire website or send a excel file with the items you want.
 
