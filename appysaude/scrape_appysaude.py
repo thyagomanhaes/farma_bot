@@ -1,15 +1,24 @@
 import os
+import sys
+import logging
+import time
 from datetime import datetime
+
 import concurrent.futures
 import requests
-from bs4 import BeautifulSoup
-import time
 import pandas as pd
 
-from utils import send_message_to_telegram, CANAL_NOTIFICACOES_BETFAIR
-import psycopg2
+logger = logging.getLogger(__name__)
+stream_handler = logging.StreamHandler(sys.stdout)  # Where logged messages will output, in this case direct to console
+formatter = logging.Formatter('[%(asctime)s : %(levelname)s] => %(message)s')
+stream_handler.setFormatter(formatter)
+logger.addHandler(stream_handler)
+logger.setLevel(logging.DEBUG)  # better to have too much log than not enough
 
-def exportar_produtos_para_excel(df):
+URL_APPYSAUDE = f"https://www.appysaude.co.ao/v1.0/products/productList?filter=&search=&skip=50&sort=3"
+
+
+def export_products_to_excel(df):
     filename_excel = f"appysaude-{datetime.now().date()}.xlsx"
     df.to_excel(filename_excel, index=False)
     return filename_excel
@@ -25,7 +34,7 @@ def make_request(url, access_token):
     return page
 
 
-def scrap_appysaude(url, access_token):
+def scrape_appysaude_page(url, access_token):
     page = make_request(url, access_token)
 
     el = page.json()
@@ -35,43 +44,43 @@ def scrap_appysaude(url, access_token):
     print("URL: ", url)
     for item in products:
         try:
-            produto = {}
+            product = {}
             print(
                 f"{item['Name']} | {item['ShortDescriptionEn']} | {item['HealthEstName']} | {item['Price']} | {item['Province']} | {item['ProductId']}")
 
-            produto['id'] = item['ProductId']
+            product['id'] = item['ProductId']
             name = item['Name']
             name = name.replace('\n', '')
             name = name.replace('\r', '')
-            produto['nome'] = name
+            product['nome'] = name
             description = item.get('ShortDescriptionEn')
 
             if description is not None:
                 description = description.replace('\n', '')
                 description = description.replace('\r', '')
-                produto['nome_completo'] = name + " " + description
+                product['nome_completo'] = name + " " + description
             else:
-                produto['nome_completo'] = name + " "
+                product['nome_completo'] = name + " "
 
-            produto['descricao'] = description
+            product['descricao'] = description
 
-            produto['fornecedor'] = item.get('HealthEstName')
-            produto['preco'] = item.get('Price')
-            produto['provincia'] = item.get('Province')
-            produto['url'] = url
-            produto['date_scraping'] = datetime.now()
+            product['fornecedor'] = item.get('HealthEstName')
+            product['preco'] = item.get('Price')
+            product['provincia'] = item.get('Province')
+            product['url'] = url
+            product['date_scraping'] = datetime.now()
 
-            products_list.append(produto)
-        except TypeError as e:
-            print(f"Erro de tipo {e}")
+            products_list.append(product)
+        except TypeError as typeErrorExp:
+            print(f"Erro de tipo: {typeErrorExp}")
 
     return products_list
 
 
-def scrap_urls_produtos(urls_produtos, access_token):
+def scrap_products_urls(urls_produtos, access_token):
     total = []
     with concurrent.futures.ThreadPoolExecutor() as executor:
-        tasks = [executor.submit(scrap_appysaude, url, access_token) for url in urls_produtos]
+        tasks = [executor.submit(scrape_appysaude_page, url, access_token) for url in urls_produtos]
         results = []
         for result in concurrent.futures.as_completed(tasks):
             results.append(result)
@@ -89,15 +98,16 @@ def scrape_appysaude():
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/99.0.4844.51 Safari/537.36'
     }
 
-    url1 = f"https://www.appysaude.co.ao/v1.0/products/productList?filter=&search=&skip=50&sort=3"
-    page = requests.get(url1, headers=headers)
+    page = requests.get(URL_APPYSAUDE, headers=headers)
+
     if page.status_code == 401:
         print("Token Inválido! Por favor, tente novamente. Obs: Seu token expira 1 hora após ter feito o login.")
     elif page.status_code == 200:
+
         print("Token validado com sucesso!!!")
         print("Iniciando scraping dos produtos...")
-        count_total_products = page.json()['TotalCount']
-        # count_total_products = 500
+        # count_total_products = page.json()['TotalCount']
+        count_total_products = 50
 
         print(f"Total de produtos disponíveis: {count_total_products}")
 
@@ -109,11 +119,11 @@ def scrape_appysaude():
 
         start = time.time()
 
-        _produtos = scrap_urls_produtos(urls, access_token)
+        _products = scrap_products_urls(urls, access_token)
 
         products_total_list = []
 
-        l_total_products = [lp._result for lp in _produtos]
+        l_total_products = [lp._result for lp in _products]
 
         for l_products in l_total_products:
             if l_products is not None and len(l_products) > 0:
@@ -123,54 +133,36 @@ def scrape_appysaude():
         df_appysaude = pd.DataFrame.from_records(products_total_list)
         path_appysaude_files = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'files')
         appysaude_filename = f'appysaude-{datetime.now().date()}'
+
         df_appysaude.to_csv(f'{path_appysaude_files}/{appysaude_filename}.csv', encoding='utf-8-sig')
         # df_appysaude.to_excel(f'{path_appysaude_files}/{appysaude_filename}.xlsx')
 
         end = time.time()
         print(f"Total de produtos disponíveis: {count_total_products}")
-        total_time = round(end - start, 2)
-        # send_message_to_telegram(f"\nTempo para coletar {len(lista_produtos)} dados: {total_time} segundos",
-        #                          CANAL_NOTIFICACOES_BETFAIR)
-        return products_total_list, total_time
+        total_time_to_scrape = round(end - start, 2)
+
+        return products_total_list, total_time_to_scrape
 
 
-class SavingToPostgresPipeline(object):
-    def __init__(self):
-        self.cur = None
-        self.connection = None
-        self.create_connection()
+def check_if_files_folder_exists():
+    path_appysaude_files = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'files')
 
-    def create_connection(self):
-        self.connection = psycopg2.connect(
-            host='',
-            user='',
-            password='',
-            dbname=''
-        )
-        self.cur = self.connection.cursor()
-
-    def process_item(self, item):
-        self.cur.execute("""insert into table (x,x) values (%s,%s)""", (
-            item["text"],
-            item["x"]
-        ))
-
-        self.connection.commit()
-        return item
-
-    def close_connection(self):
-        self.cur.close()
-        self.connection.close()
+    if os.path.exists(path_appysaude_files):
+        logger.info(f"Folder exists: {path_appysaude_files}")
+    else:
+        os.makedirs(path_appysaude_files)
+        logger.info(f"Created folder: {path_appysaude_files}")
 
 
 if __name__ == '__main__':
-    # try:
-    send_message_to_telegram("Starting scraper AppySaude...", CANAL_NOTIFICACOES_BETFAIR)
-    all_products, total_time = scrape_appysaude()
-    if len(all_products) > 0:
-        msg = f"Scraper AppySaude executed with no errors!\n"
-        msg += f"Total of products collected: {len(all_products)}\n"
-        msg += f"Total Time: {total_time} secs"
-        send_message_to_telegram(msg, CANAL_NOTIFICACOES_BETFAIR)
-    # except Exception as e:
-    # send_message_to_telegram(f"Erro ao executar script Scraper AppySaude: {e}", CANAL_NOTIFICACOES_BETFAIR)
+    try:
+        check_if_files_folder_exists()
+        logger.info("Starting scraper AppySaude...")
+        all_products, total_time = scrape_appysaude()
+        if len(all_products) > 0:
+            msg = f"\nScraper AppySaude executed with no errors!\n"
+            msg += f"Total of products collected: {len(all_products)}\n"
+            msg += f"Total Time: {total_time} secs"
+            logger.info(msg)
+    except Exception as e:
+        logger.error(f"Erro ao executar script Scraper AppySaude: {e}")
