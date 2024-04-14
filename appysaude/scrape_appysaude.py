@@ -106,8 +106,7 @@ def scrape_appysaude():
 
         print("Token validado com sucesso!!!")
         print("Iniciando scraping dos produtos...")
-        # count_total_products = page.json()['TotalCount']
-        count_total_products = 50
+        count_total_products = page.json()['TotalCount']
 
         print(f"Total de produtos disponíveis: {count_total_products}")
 
