@@ -10,6 +10,14 @@ import requests
 
 CANAL_NOTIFICACOES_BETFAIR = "1001412054755"
 
+def check_if_files_folder_exists():
+    path_mecofarma_files = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'files')
+
+    if os.path.exists(path_mecofarma_files):
+        print(f"Folder exists: {path_mecofarma_files}")
+    else:
+        os.makedirs(path_mecofarma_files)
+        print(f"Created folder: {path_mecofarma_files}")
 
 async def contar():
     print("Começou contagem")

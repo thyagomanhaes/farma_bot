@@ -11,7 +11,7 @@ import pandas as pd
 from bs4 import BeautifulSoup
 
 from constants import HTML_PARSER, NOME_ARQUIVO_TEMPORARIO
-from utils import send_message_to_telegram, CANAL_NOTIFICACOES_BETFAIR, exportar_produtos_para_excel
+from utils import exportar_produtos_para_excel, check_if_files_folder_exists
 
 logger = logging.getLogger(__name__)
 stream_handler = logging.StreamHandler(sys.stdout)  # Where logged messages will output, in this case direct to console
@@ -38,8 +38,8 @@ async def scrape_subcategory(subcategory):
             soup = BeautifulSoup(webpage, HTML_PARSER)
 
             products = []
-            list_itens = soup.find_all('li', {"class": "product-item"})
-            for li in list_itens:
+            list_items = soup.find_all('li', {"class": "product-item"})
+            for li in list_items:
                 div_product_item_info = li.find('div', {"class": "product-item-info"})
                 product_item_link = div_product_item_info.find('a', {'class': 'product-item-link'})
 
@@ -170,13 +170,14 @@ async def fetch(product, session):
 
 
 if __name__ == '__main__':
-    # try:
+    try:
+        check_if_files_folder_exists()
         loop = asyncio.get_event_loop()
         loop.run_until_complete(scrape_subcategories())
         # logger.info("Scraping of subcategories finished")
         time.sleep(1)
-        logger.info("Starting scrape of products to get more info of each one")
+        logger.info("Starting scrape products to get more info of each one")
         loop.run_until_complete(scrape_products_details())
-        send_message_to_telegram("scraper_mecofarma executado com sucesso!", CANAL_NOTIFICACOES_BETFAIR)
-    # except Exception as e:
-    #     send_message_to_telegram(f"Erro ao executar script Scraper Mecofarma: {e}", CANAL_NOTIFICACOES_BETFAIR)
+        logger.info("scraper_mecofarma executado com sucesso!")
+    except Exception as e:
+        logger.error(f"Erro ao executar script Scraper Mecofarma: {e}")
