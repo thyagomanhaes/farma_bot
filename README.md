@@ -3,6 +3,9 @@ Web scraping project using asynchronous way to collect data from two pharmacy-re
 
 # Set up
 
+- Create a virtual envirement with python -m venv env
+- execute the command pip install -r requirements to install the libs needed to run the project
+
 To use the mecofarma bot, just run the "scraper_mecofarma.py" in mecofarma folder.
 
 To use the AppySaude bot, just run the "scraper_appysaude.py" in appysaude folder.
